@@ -7,9 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Common\Abstractions\" />
-    <Folder Include="Common\Interfaces\" />
-    <Folder Include="Constants\" />
     <Folder Include="Enums\" />
     <Folder Include="Exceptions\" />
     <Folder Include="Extensions\" />

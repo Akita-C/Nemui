@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Nemui.Application.Services.Interfaces;
 using Nemui.Infrastructure.Configurations;
+using Nemui.Shared.Constants;
 using Nemui.Shared.Entities;
 
 namespace Nemui.Infrastructure.Services;
@@ -29,7 +30,9 @@ public class JwtService : IJwtService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Name),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role)
+            new(ClaimTypes.Role, user.Role),
+            new(AuthConstants.ClaimTypes.EmailVerified, user.IsEmailVerified.ToString()),
+            new(AuthConstants.ClaimTypes.JwtId, Guid.NewGuid().ToString())
         };
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -59,13 +62,37 @@ public class JwtService : IJwtService
         try
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var validationParameters = GetTokenValidationParameters();
-            var principal = await tokenHandler.ValidateTokenAsync(token, validationParameters);
-            return principal.IsValid;
+            var validationParameters = _jwtSettings.CreateTokenValidationParameters();
+            var result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
+            return result.IsValid;
         }
         catch
         {
             return false;
+        }
+    }
+    
+    public async Task<ClaimsPrincipal?> ValidateTokenAndGetPrincipalAsync(string token)
+    {
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var validationParameters = _jwtSettings.CreateTokenValidationParameters();
+            var result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
+            
+            if (result.IsValid && result.SecurityToken is JwtSecurityToken)
+            {
+                var claimsIdentity = new ClaimsIdentity(
+                    result.Claims.Select(c => new Claim(c.Key, c.Value?.ToString() ?? string.Empty)), 
+                    "jwt");
+                return new ClaimsPrincipal(claimsIdentity);
+            }
+            
+            return null;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -74,7 +101,7 @@ public class JwtService : IJwtService
         try
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var validationParameters = GetTokenValidationParameters();
+            var validationParameters = _jwtSettings.CreateTokenValidationParameters();
 
             var result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
             if (!result.IsValid) return null;
@@ -88,19 +115,6 @@ public class JwtService : IJwtService
         }
     }
 
-    private TokenValidationParameters GetTokenValidationParameters()
-    {
-        var key = Encoding.UTF8.GetBytes(_jwtSettings.SecretKey);
-        return new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(key),
-            ValidateIssuer = true,
-            ValidIssuer = _jwtSettings.Issuer,
-            ValidateAudience = true,
-            ValidAudience = _jwtSettings.Audience,
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
-        };
-    }
+    public DateTime GetTokenExpirationTime() => DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationInMinutes);
+
 }

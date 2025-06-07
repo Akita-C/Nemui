@@ -4,8 +4,10 @@ namespace Nemui.Application.Services.Interfaces;
 
 public interface IAuthService
 {
-    Task<AuthResponse> LoginAsync(LoginRequest request);
-    Task<AuthResponse> RegisterAsync(RegisterRequest request);
-    Task<bool> LogoutAsync(string refreshToken);
-    Task<AuthResponse> RefreshTokenAsync(string refreshToken);
+    Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+    Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
+    Task<bool> LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task<AuthResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task<bool> RevokeTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task<bool> RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default);
 }

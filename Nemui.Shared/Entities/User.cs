@@ -1,31 +1,20 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Nemui.Shared.Common.Abstractions;
+using Nemui.Shared.Constants;
 
 namespace Nemui.Shared.Entities;
 
-public class User
+public class User : SoftDeletableEntity
 {
-    public Guid Id { get; set; }
-    
-    [Required]
-    [EmailAddress]
-    [MaxLength(255)]
     public string Email { get; set; } = string.Empty;
-    
-    [Required]
-    [MaxLength(255)]
     public string Name { get; set; } = string.Empty;
-    
-    [Required]
     public string PasswordHash { get; set; } = string.Empty;
-    
-    [MaxLength(255)]
-    public string Role { get; set; } = "User";
-    
+    public string Role { get; set; } = AuthConstants.Roles.User;
     public bool IsEmailVerified { get; set; } = false;
     public bool IsActive { get; set; } = true;
-
-    public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public int FailedLoginAttempts { get; set; } = 0;
+    public DateTime? LockoutEnd { get; set; }
     
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

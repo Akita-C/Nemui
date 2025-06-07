@@ -6,16 +6,15 @@
 
   <ItemGroup>
     <Folder Include="Common\Behaviors\" />
-    <Folder Include="Common\Interfaces\" />
     <Folder Include="DTOs\External\" />
     <Folder Include="DTOs\Internal\" />
     <Folder Include="Helpers\" />
     <Folder Include="Services\Implementations\" />
-    <Folder Include="Validators\" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.0.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.5" />
   </ItemGroup>
 
