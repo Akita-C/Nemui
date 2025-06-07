@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nemui.Api", "Nemui.Api\Nemui.Api.csproj", "{A64672A9-F01E-4247-82A6-59C81D8EDF69}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nemui.Application", "Nemui.Application\Nemui.Application.csproj", "{79A072CD-162B-4FE7-BE58-B02507D3176A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nemui.Infrastructure", "Nemui.Infrastructure\Nemui.Infrastructure.csproj", "{6AA743E4-0373-4DE2-AE49-61EC64B47F54}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nemui.Shared", "Nemui.Shared\Nemui.Shared.csproj", "{968D501F-1565-4C9D-B69E-EB76EC7C2C70}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A64672A9-F01E-4247-82A6-59C81D8EDF69}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A64672A9-F01E-4247-82A6-59C81D8EDF69}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A64672A9-F01E-4247-82A6-59C81D8EDF69}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A64672A9-F01E-4247-82A6-59C81D8EDF69}.Release|Any CPU.Build.0 = Release|Any CPU
+		{79A072CD-162B-4FE7-BE58-B02507D3176A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79A072CD-162B-4FE7-BE58-B02507D3176A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79A072CD-162B-4FE7-BE58-B02507D3176A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79A072CD-162B-4FE7-BE58-B02507D3176A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6AA743E4-0373-4DE2-AE49-61EC64B47F54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AA743E4-0373-4DE2-AE49-61EC64B47F54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AA743E4-0373-4DE2-AE49-61EC64B47F54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AA743E4-0373-4DE2-AE49-61EC64B47F54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{968D501F-1565-4C9D-B69E-EB76EC7C2C70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{968D501F-1565-4C9D-B69E-EB76EC7C2C70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{968D501F-1565-4C9D-B69E-EB76EC7C2C70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{968D501F-1565-4C9D-B69E-EB76EC7C2C70}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
