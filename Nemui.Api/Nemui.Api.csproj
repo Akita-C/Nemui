@@ -18,7 +18,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,5 +37,13 @@
     <Folder Include="Models\Responses\" />
     <Folder Include="Swagger\" />
   </ItemGroup>
+
+  <Target Name="GenerateOpenApiSchema" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Message Text="🔄 Generating OpenAPI schema..." Importance="high" />
+    <MakeDir Directories="../../sutoresu/src/lib/api" />
+    <Exec Command="swagger tofile --output ../../sutoresu/src/lib/api/openapi.json $(OutputPath)$(AssemblyName).dll v1"
+          ContinueOnError="false" />
+    <Message Text="✅ OpenAPI schema generated at: ../../sutoresu/src/lib/api/openapi.json" Importance="high" />
+  </Target>
 </Project>
 
