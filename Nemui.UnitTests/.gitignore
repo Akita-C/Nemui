@@ -483,9 +483,5 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-appsettings.json
-appsettings.Development.json
-appsettings.Production.json
-appsettings.Staging.json
-appsettings.Testing.json
-appsettings.Testing.json
+.vscode
+.idea/
