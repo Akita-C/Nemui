@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Nemui.Application.Services;
 using Nemui.Shared.Constants;
 using Nemui.Shared.DTOs.Auth;
@@ -20,6 +21,7 @@ public class AuthController : BaseApiController
     }
     
     [HttpPost("login")]
+    [EnableRateLimiting("AuthPolicy")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
@@ -109,10 +111,7 @@ public class AuthController : BaseApiController
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(request.AccessToken))
-            {
-                await _authService.BlacklistAccessTokenAsync(request.AccessToken, cancellationToken);
-            }
+            if (!string.IsNullOrWhiteSpace(request.AccessToken)) await _authService.BlacklistAccessTokenAsync(request.AccessToken, cancellationToken);
             
             var result = await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
             
