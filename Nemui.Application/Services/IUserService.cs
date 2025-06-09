@@ -1,4 +1,5 @@
 ﻿using Nemui.Shared.DTOs.Auth;
+using Nemui.Shared.DTOs.Common;
 
 namespace Nemui.Application.Services;
 
@@ -12,4 +13,6 @@ public interface IUserService
     Task<bool> ActivateUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<bool> UserExistsAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default);
+    Task<ImageResponse> UpdateUserAvatarAsync(Guid userId, UpdateAvatarRequest request, CancellationToken cancellationToken = default);
+    Task<bool> DeleteUserAvatarAsync(Guid userId, CancellationToken cancellationToken = default);
 }

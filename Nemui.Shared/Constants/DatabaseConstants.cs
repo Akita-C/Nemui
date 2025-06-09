@@ -14,7 +14,8 @@ public static class DatabaseConstants
         public const int NameMaxLength = 255;
         public const int RoleMaxLength = 50;
         public const int TokenMaxLength = 500;
-        public const int IpAddressMaxLength = 255;
+        public const int CloudinaryPublicIdMaxLength = 200;
+        public const int UrlMaxLength = 2000;
     }
 
     public static class Indexes

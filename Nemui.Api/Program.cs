@@ -15,6 +15,7 @@ using Nemui.Infrastructure.Configurations;
 using Nemui.Infrastructure.Data.Context;
 using Nemui.Infrastructure.Data.Repositories.Implementations;
 using Nemui.Infrastructure.Services;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -22,12 +23,19 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection(AuthSettings.SectionName));
 builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection(RedisSettings.SectionName));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(CloudinarySettings.SectionName));
+builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 var redisSettings = builder.Configuration.GetSection(RedisSettings.SectionName).Get<RedisSettings>();
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     if (redisSettings == null) throw new ArgumentNullException(nameof(redisSettings));
-    options.Configuration = redisSettings.GetConnectionString();
     options.InstanceName = redisSettings.InstanceName;
+    options.ConfigurationOptions = new ConfigurationOptions
+    {
+        EndPoints = { { redisSettings.EndPoint, redisSettings.Port } },
+        Password = redisSettings.Password,
+        User = redisSettings.Username
+    };
 });
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IUserCacheService, UserCacheService>();

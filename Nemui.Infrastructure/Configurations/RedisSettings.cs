@@ -4,38 +4,11 @@ public class RedisSettings
 {
     public const string SectionName = "Redis";
 
-    public string ConnectionString { get; set; } = string.Empty;
-    public string? Host { get; set; }
-    public int Port { get; set; } = 6379;
-    public string? Username { get; set; }
-    public string? Password { get; set; }
-    public int Database { get; set; } = 0;
+    public string EndPoint { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public string? Username { get; init; }
+    public string? Password { get; init; } 
     public string InstanceName { get; set; } = "Akita";
-    public bool UseSsl { get; set; } = false;
-
-    public string GetConnectionString()
-    {
-        if (!string.IsNullOrEmpty(ConnectionString))
-            return ConnectionString;
-
-        var options = new List<string>();
-        
-        if (!string.IsNullOrEmpty(Host))
-            options.Add($"{Host}:{Port}");
-        
-        if (!string.IsNullOrEmpty(Username))
-            options.Add($"user={Username}");
-            
-        if (!string.IsNullOrEmpty(Password))
-            options.Add($"password={Password}");
-            
-        if (UseSsl)
-            options.Add("ssl=true");
-            
-        options.Add($"abortConnect=false");
-
-        return string.Join(",", options);
-    }
     
     public CacheSettings Cache { get; set; } = new();
 }

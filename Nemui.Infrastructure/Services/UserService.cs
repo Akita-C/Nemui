@@ -2,6 +2,7 @@
 using Nemui.Application.Common.Interfaces;
 using Nemui.Application.Services;
 using Nemui.Shared.DTOs.Auth;
+using Nemui.Shared.DTOs.Common;
 
 namespace Nemui.Infrastructure.Services;
 
@@ -10,15 +11,17 @@ public class UserService : IUserService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordService _passwordService;
     private readonly IUserCacheService _userCacheService;
+    private readonly IImageService _imageService;
     
     public UserService(
         IUnitOfWork unitOfWork,
         IPasswordService passwordService, 
-        IUserCacheService userCacheService)
+        IUserCacheService userCacheService, IImageService imageService)
     {
         _unitOfWork = unitOfWork;
         _passwordService = passwordService;
         _userCacheService = userCacheService;
+        _imageService = imageService;
     }
     
     public async Task<UserProfileDto?> GetUserProfileAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -38,6 +41,19 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt
         };
+
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+        {
+            profile.AvatarTransformations = new Dictionary<string, string>
+            {
+                ["small"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_150,h_150,q_auto,f_auto", cancellationToken),
+                ["medium"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_300,h_300,q_auto,f_auto", cancellationToken),
+                ["large"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_500,h_500,q_auto,f_auto", cancellationToken)
+            };
+        }
         
         await _userCacheService.SetUserProfileAsync(userId, profile, cancellationToken);
         
@@ -49,7 +65,7 @@ public class UserService : IUserService
         var user = await _unitOfWork.Users.GetByEmailAsync(email, cancellationToken);
         if (user == null) return null;
 
-        return new UserProfileDto
+        var profile = new UserProfileDto
         {
             Id = user.Id,
             Name = user.Name,
@@ -59,6 +75,18 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt
         };
+        
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+        {
+            profile.AvatarTransformations = new Dictionary<string, string>
+            {
+                ["small"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId, "c_fill,w_150,h_150,q_auto,f_auto", cancellationToken),
+                ["medium"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId, "c_fill,w_300,h_300,q_auto,f_auto", cancellationToken),
+                ["large"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId, "c_fill,w_500,h_500,q_auto,f_auto", cancellationToken)
+            };
+        }
+        
+        return profile;
     }
 
     public async Task<bool> UpdateUserProfileAsync(Guid userId, UpdateUserProfileRequest request,
@@ -153,5 +181,56 @@ public class UserService : IUserService
     public async Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
         return await _unitOfWork.Users.ExistsByEmailAsync(email, cancellationToken);
+    }
+
+    public async Task<ImageResponse> UpdateUserAvatarAsync(Guid userId, UpdateAvatarRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null) throw new InvalidOperationException("User not found");
+
+        // Delete old avatar if exists
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+        {
+            await _imageService.DeleteImageAsync(user.AvatarPublicId, cancellationToken);
+        }
+
+        // Upload new avatar
+        var imageResponse = await _imageService.UploadUserAvatarAsync(request.Avatar, userId, cancellationToken);
+
+        // Update user avatar information
+        user.AvatarPublicId = imageResponse.PublicId;
+        user.AvatarUrl = imageResponse.SecureUrl;
+
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Invalidate cache
+        await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
+
+        return imageResponse;
+    }
+
+    public async Task<bool> DeleteUserAvatarAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null || string.IsNullOrEmpty(user.AvatarPublicId)) return false;
+
+        // Delete from Cloudinary
+        var deleted = await _imageService.DeleteImageAsync(user.AvatarPublicId, cancellationToken);
+        
+        if (deleted)
+        {
+            // Clear avatar info from database
+            user.AvatarPublicId = null;
+            user.AvatarUrl = null;
+
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // Invalidate cache
+            await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
+        }
+
+        return deleted;
     }
 }

@@ -16,5 +16,8 @@ public class User : SoftDeletableEntity
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTime? LockoutEnd { get; set; }
     
+    public string? AvatarPublicId { get; set; }
+    public string? AvatarUrl { get; set; }
+    
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

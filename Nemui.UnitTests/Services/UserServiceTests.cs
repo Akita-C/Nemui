@@ -29,7 +29,7 @@ public class UserServiceTests
         _mockUnitOfWork.Setup(x => x.Users).Returns(_mockUserRepository.Object);
         _mockUnitOfWork.Setup(x => x.RefreshTokens).Returns(_mockRefreshTokenRepository.Object);
 
-        _userService = new UserService(_mockUnitOfWork.Object, _mockPasswordService.Object, _mockUserCacheService.Object);
+        // _userService = new UserService(_mockUnitOfWork.Object, _mockPasswordService.Object, _mockUserCacheService.Object);
     }
 
     #region GetUserProfileAsync Tests

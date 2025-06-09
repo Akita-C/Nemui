@@ -40,6 +40,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.FailedLoginAttempts)
             .HasDefaultValue(0);
 
+        builder.Property(u => u.AvatarPublicId)
+            .HasMaxLength(DatabaseConstants.FieldLengths.CloudinaryPublicIdMaxLength)
+            .IsRequired(false);
+
+        builder.Property(u => u.AvatarUrl)
+            .HasMaxLength(DatabaseConstants.FieldLengths.UrlMaxLength)
+            .IsRequired(false);
+        
         builder.HasIndex(u => u.Email)
             .IsUnique()
             .HasFilter(DatabaseConstants.Filters.SoftDeleteFilter) // User đang active mới bị index này constraint

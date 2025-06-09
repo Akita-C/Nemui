@@ -9,4 +9,6 @@ public class UserProfileDto
     public bool IsEmailVerified { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public string? AvatarUrl { get; set; }
+    public Dictionary<string, string>? AvatarTransformations { get; set; }
 }
