@@ -1,4 +1,4 @@
-﻿namespace Nemui.Application.Services.Interfaces;
+﻿namespace Nemui.Application.Services;
 
 public interface IPasswordService
 {

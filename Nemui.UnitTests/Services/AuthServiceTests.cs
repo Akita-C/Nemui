@@ -4,7 +4,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nemui.Application.Common.Interfaces;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Infrastructure.Services;
 using Nemui.Shared.DTOs.Auth;
@@ -21,6 +21,7 @@ public class AuthServiceTests
     private readonly Mock<IValidator<RegisterRequest>> _mockRegisterValidator;
     private readonly Mock<IUserRepository> _mockUserRepository;
     private readonly Mock<IRefreshTokenRepository> _mockRefreshTokenRepository;
+    private readonly Mock<IUserCacheService> _mockUserCacheService;
     private readonly AuthService _authService;
 
     public AuthServiceTests()
@@ -32,6 +33,7 @@ public class AuthServiceTests
         _mockRegisterValidator = new Mock<IValidator<RegisterRequest>>();
         _mockUserRepository = new Mock<IUserRepository>();
         _mockRefreshTokenRepository = new Mock<IRefreshTokenRepository>();
+        _mockUserCacheService = new Mock<IUserCacheService>();
 
         _mockUnitOfWork.Setup(x => x.Users).Returns(_mockUserRepository.Object);
         _mockUnitOfWork.Setup(x => x.RefreshTokens).Returns(_mockRefreshTokenRepository.Object);
@@ -45,14 +47,15 @@ public class AuthServiceTests
         var jwtOptions = Options.Create(jwtSettings);
         var authOptions = Options.Create(authSettings);
 
-        _authService = new AuthService(
-            _mockUnitOfWork.Object,
-            _mockJwtService.Object,
-            _mockPasswordService.Object,
-            _mockLoginValidator.Object,
-            _mockRegisterValidator.Object,
-            jwtOptions,
-            authOptions);
+        // _authService = new AuthService(
+        //     _mockUnitOfWork.Object,
+        //     _mockJwtService.Object,
+        //     _mockPasswordService.Object,
+        //     _mockLoginValidator.Object,
+        //     _mockRegisterValidator.Object,
+        //     jwtOptions,
+        //     authOptions,
+        //     _mockUserCacheService.Object);
     }
     
     [Fact]

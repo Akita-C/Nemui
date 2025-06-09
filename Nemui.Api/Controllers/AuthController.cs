@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Shared.Constants;
 using Nemui.Shared.DTOs.Auth;
 using Nemui.Shared.DTOs.Common;
@@ -105,10 +105,15 @@ public class AuthController : BaseApiController
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> LogoutAsync([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> LogoutAsync([FromBody] LogoutRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(request.AccessToken))
+            {
+                await _authService.BlacklistAccessTokenAsync(request.AccessToken, cancellationToken);
+            }
+            
             var result = await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
             
             _logger.LogInformation("User logged out successfully");

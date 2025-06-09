@@ -1,6 +1,6 @@
 ﻿using Nemui.Shared.DTOs.Auth;
 
-namespace Nemui.Application.Services.Interfaces;
+namespace Nemui.Application.Services;
 
 public interface IAuthService
 {
@@ -10,4 +10,5 @@ public interface IAuthService
     Task<AuthResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task<bool> RevokeTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task<bool> RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> BlacklistAccessTokenAsync(string accessToken, CancellationToken cancellationToken = default);
 }

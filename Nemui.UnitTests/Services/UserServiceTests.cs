@@ -1,11 +1,11 @@
 ﻿using FluentAssertions;
 using Moq;
 using Nemui.Application.Common.Interfaces;
-using Nemui.Application.Services.Interfaces;
 using Nemui.Infrastructure.Services;
 using Nemui.Shared.DTOs.Auth;
 using Nemui.Shared.Entities;
 using System.ComponentModel.DataAnnotations;
+using Nemui.Application.Services;
 
 namespace Nemui.UnitTests.Services;
 
@@ -15,6 +15,7 @@ public class UserServiceTests
     private readonly Mock<IPasswordService> _mockPasswordService;
     private readonly Mock<IUserRepository> _mockUserRepository;
     private readonly Mock<IRefreshTokenRepository> _mockRefreshTokenRepository;
+    private readonly Mock<IUserCacheService> _mockUserCacheService;
     private readonly UserService _userService;
 
     public UserServiceTests()
@@ -23,11 +24,12 @@ public class UserServiceTests
         _mockPasswordService = new Mock<IPasswordService>();
         _mockUserRepository = new Mock<IUserRepository>();
         _mockRefreshTokenRepository = new Mock<IRefreshTokenRepository>();
+        _mockUserCacheService = new Mock<IUserCacheService>();
 
         _mockUnitOfWork.Setup(x => x.Users).Returns(_mockUserRepository.Object);
         _mockUnitOfWork.Setup(x => x.RefreshTokens).Returns(_mockRefreshTokenRepository.Object);
 
-        _userService = new UserService(_mockUnitOfWork.Object, _mockPasswordService.Object);
+        _userService = new UserService(_mockUnitOfWork.Object, _mockPasswordService.Object, _mockUserCacheService.Object);
     }
 
     #region GetUserProfileAsync Tests

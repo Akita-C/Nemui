@@ -8,7 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Nemui.Api.Middlewares;
 using Nemui.Application.Common.Interfaces;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Application.Validators.Auth;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Infrastructure.Data.Context;
@@ -20,6 +20,16 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection(AuthSettings.SectionName));
+builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection(RedisSettings.SectionName));
+var redisSettings = builder.Configuration.GetSection(RedisSettings.SectionName).Get<RedisSettings>();
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    if (redisSettings == null) throw new ArgumentNullException(nameof(redisSettings));
+    options.Configuration = redisSettings.GetConnectionString();
+    options.InstanceName = redisSettings.InstanceName;
+});
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<IUserCacheService, UserCacheService>();
 builder.Services.AddApiVersioning(options =>
 {
     options.AssumeDefaultVersionWhenUnspecified = true;
@@ -47,6 +57,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IJwtBlacklistService, JwtBlacklistService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();

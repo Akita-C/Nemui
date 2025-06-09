@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.Options;
 using Nemui.Application.Common.Interfaces;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Shared.DTOs.Auth;
 using Nemui.Shared.Entities;
@@ -12,11 +12,13 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IJwtService _jwtService;
+    private readonly IJwtBlacklistService _jwtBlacklistService;
     private readonly IPasswordService _passwordService;
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IValidator<RegisterRequest> _registerValidator;
     private readonly JwtSettings _jwtSettings;
     private readonly AuthSettings _authSettings;
+    private readonly IUserCacheService _userCacheService;
     
     public AuthService(
         IUnitOfWork unitOfWork,
@@ -25,13 +27,18 @@ public class AuthService : IAuthService
         IValidator<LoginRequest> loginValidator,
         IValidator<RegisterRequest> registerValidator,
         IOptions<JwtSettings> jwtSettings,
-        IOptions<AuthSettings> authSettings)
+        IOptions<AuthSettings> authSettings, 
+        IUserCacheService userCacheService,
+        IJwtBlacklistService jwtBlacklistService)
     {
         _unitOfWork = unitOfWork;
         _jwtService = jwtService;
+        _jwtBlacklistService = jwtBlacklistService;
         _passwordService = passwordService;
         _loginValidator = loginValidator;
         _registerValidator = registerValidator;
+        _userCacheService = userCacheService;
+        _jwtBlacklistService = jwtBlacklistService;
         _jwtSettings = jwtSettings?.Value ?? throw new ArgumentNullException(nameof(jwtSettings));
         _authSettings = authSettings.Value ?? throw new ArgumentNullException(nameof(authSettings));
     }
@@ -94,21 +101,25 @@ public class AuthService : IAuthService
         await _unitOfWork.RefreshTokens.AddAsync(refreshTokenEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var userProfile = new UserProfileDto
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email,
+            Role = user.Role,
+            IsEmailVerified = user.IsEmailVerified,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt
+        };
+        
+        await _userCacheService.SetUserProfileAsync(userProfile.Id, userProfile, cancellationToken);
+
         return new AuthResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = _jwtService.GetTokenExpirationTime(),
-            User = new UserProfileDto
-            {
-                Id = user.Id,
-                Name = user.Name,
-                Email = user.Email,
-                Role = user.Role,
-                IsEmailVerified = user.IsEmailVerified,
-                CreatedAt = user.CreatedAt,
-                LastLoginAt = user.LastLoginAt
-            }
+            User = userProfile
         };
     }
 
@@ -170,6 +181,9 @@ public class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(refreshToken)) return false;
         
+        var tokenEntity = await _unitOfWork.RefreshTokens.GetByTokenAsync(refreshToken, cancellationToken);
+        if (tokenEntity?.User != null) await _jwtBlacklistService.BlacklistAllUserTokensAsync(tokenEntity.User.Id, cancellationToken);
+        
         await _unitOfWork.RefreshTokens.RevokeTokenAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
@@ -227,6 +241,9 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(refreshToken))
             return false;
 
+        var tokenEntity = await _unitOfWork.RefreshTokens.GetByTokenAsync(refreshToken, cancellationToken);
+        if (tokenEntity?.User != null) await _jwtBlacklistService.BlacklistAllUserTokensAsync(tokenEntity.User.Id, cancellationToken);
+        
         await _unitOfWork.RefreshTokens.RevokeTokenAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
@@ -235,9 +252,19 @@ public class AuthService : IAuthService
 
     public async Task<bool> RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        await _jwtBlacklistService.BlacklistAllUserTokensAsync(userId, cancellationToken);
         await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(userId, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
+        return true;
+    }
+    
+    public async Task<bool> BlacklistAccessTokenAsync(string accessToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken))
+            return false;
+
+        await _jwtBlacklistService.BlacklistTokenAsync(accessToken, cancellationToken);
         return true;
     }
 }

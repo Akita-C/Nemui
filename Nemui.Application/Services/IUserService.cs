@@ -1,6 +1,6 @@
 ﻿using Nemui.Shared.DTOs.Auth;
 
-namespace Nemui.Application.Services.Interfaces;
+namespace Nemui.Application.Services;
 
 public interface IUserService
 {

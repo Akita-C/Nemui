@@ -9,7 +9,6 @@
     <Folder Include="DTOs\External\" />
     <Folder Include="DTOs\Internal\" />
     <Folder Include="Helpers\" />
-    <Folder Include="Services\Implementations\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Nemui.Shared.Entities;
 
-namespace Nemui.Application.Services.Interfaces;
+namespace Nemui.Application.Services;
 
 public interface IJwtService
 {

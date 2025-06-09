@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 
 namespace Nemui.Api.Middlewares;
@@ -51,7 +51,7 @@ public class JwtMiddleware
             {
                 context.User = principal;
                 _logger.LogDebug("JWT token validated successfully for user {UserId}", 
-                    principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+                    principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             }
         }
         catch (Exception ex)

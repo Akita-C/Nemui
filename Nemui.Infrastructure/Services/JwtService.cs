@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Shared.Constants;
 using Nemui.Shared.Entities;
@@ -14,9 +14,11 @@ namespace Nemui.Infrastructure.Services;
 public class JwtService : IJwtService
 {
     private readonly JwtSettings _jwtSettings;
+    private readonly IJwtBlacklistService _jwtBlacklistService;
 
-    public JwtService(IOptions<JwtSettings> jwtSettings)
+    public JwtService(IOptions<JwtSettings> jwtSettings, IJwtBlacklistService jwtBlacklistService)
     {
+        _jwtBlacklistService = jwtBlacklistService;
         _jwtSettings = jwtSettings?.Value ?? throw new ArgumentNullException(nameof(jwtSettings));
     }
 
@@ -61,6 +63,7 @@ public class JwtService : IJwtService
     {
         try
         {
+            if (await _jwtBlacklistService.IsTokenBlacklistedAsync(token)) return false;
             var tokenHandler = new JwtSecurityTokenHandler();
             var validationParameters = _jwtSettings.CreateTokenValidationParameters();
             var result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
@@ -76,6 +79,7 @@ public class JwtService : IJwtService
     {
         try
         {
+            if (await _jwtBlacklistService.IsTokenBlacklistedAsync(token)) return null;
             var tokenHandler = new JwtSecurityTokenHandler();
             var validationParameters = _jwtSettings.CreateTokenValidationParameters();
             var result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
@@ -100,6 +104,7 @@ public class JwtService : IJwtService
     {
         try
         {
+            if (await _jwtBlacklistService.IsTokenBlacklistedAsync(token)) return null;
             var tokenHandler = new JwtSecurityTokenHandler();
             var validationParameters = _jwtSettings.CreateTokenValidationParameters();
 
@@ -116,5 +121,4 @@ public class JwtService : IJwtService
     }
 
     public DateTime GetTokenExpirationTime() => DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationInMinutes);
-
 }

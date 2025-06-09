@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Nemui.Application.Common.Interfaces;
-using Nemui.Application.Services.Interfaces;
+using Nemui.Application.Services;
 using Nemui.Shared.DTOs.Auth;
 
 namespace Nemui.Infrastructure.Services;
@@ -9,21 +9,26 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordService _passwordService;
-
+    private readonly IUserCacheService _userCacheService;
+    
     public UserService(
         IUnitOfWork unitOfWork,
-        IPasswordService passwordService)
+        IPasswordService passwordService, 
+        IUserCacheService userCacheService)
     {
         _unitOfWork = unitOfWork;
         _passwordService = passwordService;
+        _userCacheService = userCacheService;
     }
     
     public async Task<UserProfileDto?> GetUserProfileAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        var cachedProfile = await _userCacheService.GetUserProfileAsync(userId, cancellationToken);
+        if (cachedProfile != null) return cachedProfile;
+        
         var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
         if (user == null) return null;
-
-        return new UserProfileDto
+        var profile = new UserProfileDto
         {
             Id = user.Id,
             Name = user.Name,
@@ -33,6 +38,10 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt
         };
+        
+        await _userCacheService.SetUserProfileAsync(userId, profile, cancellationToken);
+        
+        return profile;
     }
 
     public async Task<UserProfileDto?> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
@@ -62,6 +71,8 @@ public class UserService : IUserService
         
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
         
         return true;
     }
@@ -92,6 +103,9 @@ public class UserService : IUserService
         
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
+        // Invalidate all user cache data for security
+        await _userCacheService.InvalidateAllUserDataAsync(userId, cancellationToken);
+        
         return true;
     }
 
@@ -109,6 +123,9 @@ public class UserService : IUserService
         
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
+        // Invalidate all user cache data
+        await _userCacheService.InvalidateAllUserDataAsync(userId, cancellationToken);
+        
         return true;
     }
 
@@ -121,6 +138,9 @@ public class UserService : IUserService
         
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        // Invalidate cache to refresh data
+        await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
         
         return true;
     }
