@@ -174,43 +174,4 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during token revocation"));
         }
     }
-    
-    [HttpGet("profile")]
-    [Authorize]
-    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-    public Task<IActionResult> GetProfileAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var email = GetCurrentUserEmail();
-            var name = GetCurrentUserName();
-            
-            var profile = new UserProfileDto
-            {
-                Id = userId,
-                Email = email,
-                Name = name,
-                Role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty,
-                IsEmailVerified = bool.TryParse(User.FindFirst(AuthConstants.ClaimTypes.EmailVerified)?.Value, out var emailVerified) && emailVerified
-            };
-
-            _logger.LogInformation("Profile retrieved for user {UserId}", userId);
-
-            return Task.FromResult<IActionResult>(Ok(ApiResponse<UserProfileDto>.SuccessResult(profile, "Profile retrieved successfully")));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogWarning("Invalid user token during profile retrieval: {Message}", ex.Message);
-            return Task.FromResult<IActionResult>(Unauthorized(ErrorResponse.Create(ex.Message)));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving user profile");
-            return Task.FromResult<IActionResult>(StatusCode(500, ErrorResponse.Create("An error occurred while retrieving profile")));
-        }
-    }
 }

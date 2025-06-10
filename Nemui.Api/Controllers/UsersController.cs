@@ -17,6 +17,40 @@ public class UsersController : BaseApiController
         _userService = userService;
         _logger = logger;
     }
+
+    [HttpGet("profile")]
+    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetProfileAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var profile = await _userService.GetUserProfileAsync(userId, cancellationToken);
+
+            if (profile == null)
+            {
+                _logger.LogWarning("Profile retrieved for user {userId}", userId);
+                return NotFound(ErrorResponse.Create("User profile not found"));
+            }
+            
+            _logger.LogInformation("Profile retrieved for user {userId}", userId);
+            
+            return Ok(ApiResponse<UserProfileDto>.SuccessResult(profile, "Profile retrieved successfully"));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Invalid user token during profile retrieval: {Message}", ex.Message);
+            return Unauthorized(ErrorResponse.Create(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving user profile for user");
+            return StatusCode(500, ErrorResponse.Create("An error occurred while retrieving user profile"));
+        }
+    }
     
     [HttpPost("avatar")]
     [ProducesResponseType(typeof(ApiResponse<ImageResponse>), StatusCodes.Status200OK)]
