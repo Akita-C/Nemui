@@ -39,7 +39,8 @@ public class UserService : IUserService
             Role = user.Role,
             IsEmailVerified = user.IsEmailVerified,
             CreatedAt = user.CreatedAt,
-            LastLoginAt = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt,
+            AvatarUrl = user.AvatarUrl,
         };
 
         if (!string.IsNullOrEmpty(user.AvatarPublicId))

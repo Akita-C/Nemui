@@ -19,6 +19,7 @@ public class AuthService : IAuthService
     private readonly JwtSettings _jwtSettings;
     private readonly AuthSettings _authSettings;
     private readonly IUserCacheService _userCacheService;
+    private readonly IImageService _imageService;
     
     public AuthService(
         IUnitOfWork unitOfWork,
@@ -29,11 +30,12 @@ public class AuthService : IAuthService
         IOptions<JwtSettings> jwtSettings,
         IOptions<AuthSettings> authSettings, 
         IUserCacheService userCacheService,
-        IJwtBlacklistService jwtBlacklistService)
+        IJwtBlacklistService jwtBlacklistService, IImageService imageService)
     {
         _unitOfWork = unitOfWork;
         _jwtService = jwtService;
         _jwtBlacklistService = jwtBlacklistService;
+        _imageService = imageService;
         _passwordService = passwordService;
         _loginValidator = loginValidator;
         _registerValidator = registerValidator;
@@ -109,8 +111,22 @@ public class AuthService : IAuthService
             Role = user.Role,
             IsEmailVerified = user.IsEmailVerified,
             CreatedAt = user.CreatedAt,
-            LastLoginAt = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt,
+            AvatarUrl = user.AvatarUrl
         };
+        
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+        {
+            userProfile.AvatarTransformations = new Dictionary<string, string>
+            {
+                ["small"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_150,h_150,q_auto,f_auto", cancellationToken),
+                ["medium"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_300,h_300,q_auto,f_auto", cancellationToken),
+                ["large"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId,
+                    "c_fill,w_500,h_500,q_auto,f_auto", cancellationToken)
+            };
+        }
         
         await _userCacheService.SetUserProfileAsync(userProfile.Id, userProfile, cancellationToken);
 
