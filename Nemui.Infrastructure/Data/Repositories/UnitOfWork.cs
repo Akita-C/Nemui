@@ -1,8 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore.Storage;
 using Nemui.Application.Common.Interfaces;
+using Nemui.Application.Repositories;
 using Nemui.Infrastructure.Data.Context;
+using Nemui.Infrastructure.Data.Repositories.Implementations;
 
-namespace Nemui.Infrastructure.Data.Repositories.Implementations;
+namespace Nemui.Infrastructure.Data.Repositories;
 
 public class UnitOfWork : IUnitOfWork
 {
@@ -11,9 +13,13 @@ public class UnitOfWork : IUnitOfWork
     
     private IUserRepository? _users;
     private IRefreshTokenRepository? _refreshToken;
+    private IQuizRepository? _quizzes;
+    private IQuestionRepository? _questions;
     
     public IUserRepository Users => _users ??= new UserRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshToken ??= new RefreshTokenRepository(_context);
+    public IQuizRepository Quizzes => _quizzes ??= new QuizRepository(_context);
+    public IQuestionRepository Questions => _questions ??= new QuestionRepository(_context);
 
     public UnitOfWork(AppDbContext context)
     {

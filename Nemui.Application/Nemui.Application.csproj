@@ -5,7 +5,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Common\Behaviors\" />
     <Folder Include="DTOs\External\" />
     <Folder Include="DTOs\Internal\" />
     <Folder Include="Helpers\" />

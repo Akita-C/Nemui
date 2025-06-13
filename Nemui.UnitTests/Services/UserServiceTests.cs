@@ -5,6 +5,7 @@ using Nemui.Infrastructure.Services;
 using Nemui.Shared.DTOs.Auth;
 using Nemui.Shared.Entities;
 using System.ComponentModel.DataAnnotations;
+using Nemui.Application.Repositories;
 using Nemui.Application.Services;
 
 namespace Nemui.UnitTests.Services;

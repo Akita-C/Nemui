@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Options;
 using Moq;
 using Nemui.Application.Common.Interfaces;
+using Nemui.Application.Repositories;
 using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Infrastructure.Services;

@@ -1,4 +1,5 @@
-﻿using Nemui.Shared.Entities;
+﻿using Nemui.Application.Repositories;
+using Nemui.Shared.Entities;
 
 namespace Nemui.Application.Common.Interfaces;
 

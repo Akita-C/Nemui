@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Nemui.Application.Common.Interfaces;
+using Nemui.Application.Repositories;
 using Nemui.Application.Services;
 using Nemui.Shared.DTOs.Auth;
 using Nemui.Shared.DTOs.Common;

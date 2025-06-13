@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.Options;
 using Nemui.Application.Common.Interfaces;
+using Nemui.Application.Repositories;
 using Nemui.Application.Services;
 using Nemui.Infrastructure.Configurations;
 using Nemui.Shared.DTOs.Auth;
