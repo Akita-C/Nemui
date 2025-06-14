@@ -100,6 +100,25 @@ public class QuizRepository(AppDbContext context) : Repository<Quiz>(context), I
             .ToListAsync(cancellationToken);
     }
 
+    public async ValueTask<(IEnumerable<Quiz> Quizzes, string? NextCursor)> GetMyQuizzesWithPaginationAsync(
+        Guid creatorId, QuizListRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuizQueryWithQuestions()
+            .Where(q => q.CreatorId == creatorId); // Filter by creator first
+
+        query = ApplyQuizFilters(query, request);
+        query = ApplyCursorPagination(query, request);
+        query = ApplyQuizSorting(query, request);
+
+        var quizzes = await query
+            .Take(request.PageSize + 1)
+            .ToListAsync(cancellationToken);
+
+        var (resultQuizzes, nextCursor) = ProcessPaginationResult(quizzes, request.PageSize);
+
+        return (resultQuizzes, nextCursor);
+    }
+
     private IQueryable<Quiz> BuildQuizQuery()
     {
         return _dbSet

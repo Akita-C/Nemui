@@ -64,7 +64,7 @@ public class UserServiceTests
         result.Email.Should().Be("john@example.com");
         result.Role.Should().Be("User");
         result.IsEmailVerified.Should().BeTrue();
-        result.CreatedAt.Should().Be(user.CreatedAt);
+        result.CreatedAt.Should().Be(user.CreatedAt.DateTime);
         result.LastLoginAt.Should().Be(user.LastLoginAt);
     }
 
@@ -117,7 +117,7 @@ public class UserServiceTests
         result.Email.Should().Be(email);
         result.Role.Should().Be("Admin");
         result.IsEmailVerified.Should().BeTrue();
-        result.CreatedAt.Should().Be(user.CreatedAt);
+        result.CreatedAt.Should().Be(user.CreatedAt.DateTime);
         result.LastLoginAt.Should().Be(user.LastLoginAt);
     }
 

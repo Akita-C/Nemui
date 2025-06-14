@@ -17,4 +17,6 @@ public interface IQuizRepository : IRepository<Quiz>
     ValueTask<Dictionary<string, int>> GetQuizCountsByCategoryAsync(CancellationToken cancellationToken = default);
     ValueTask<IEnumerable<Quiz>> GetQuizzesByCategoryAsync(string category, int limit = 20, CancellationToken cancellationToken = default);
     ValueTask<IEnumerable<Quiz>> SearchQuizzesAsync(string searchTerm, int limit = 20, CancellationToken cancellationToken = default);
+    ValueTask<(IEnumerable<Quiz> Quizzes, string? NextCursor)> GetMyQuizzesWithPaginationAsync(
+        Guid creatorId, QuizListRequest request, CancellationToken cancellationToken = default);
 }

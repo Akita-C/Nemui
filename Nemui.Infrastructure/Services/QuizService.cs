@@ -43,10 +43,11 @@ public class QuizService : IQuizService
         return (quizDtos, nextCursor);
     }
 
-    public async ValueTask<IEnumerable<QuizSummaryDto>> GetMyQuizzesAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async ValueTask<(IEnumerable<QuizSummaryDto> Quizzes, string? NextCursor)> GetMyQuizzesAsync(Guid userId, QuizListRequest request, CancellationToken cancellationToken = default)
     {
-        var quizzes = await _unitOfWork.Quizzes.GetQuizzesByCreatorAsync(userId, cancellationToken);
-        return await MapToQuizSummaryDtosAsync(quizzes, cancellationToken);
+        var (quizzes, nextCursor) = await _unitOfWork.Quizzes.GetMyQuizzesWithPaginationAsync(userId, request, cancellationToken);
+        var quizDtos = await MapToQuizSummaryDtosAsync(quizzes, cancellationToken);
+        return (quizDtos, nextCursor);
     }
 
     public async ValueTask<IEnumerable<QuizSummaryDto>> GetPublicQuizzesAsync(int limit = 10, CancellationToken cancellationToken = default)
