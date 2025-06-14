@@ -20,7 +20,8 @@ public class QuestionConfiguration : IEntityTypeConfiguration<Question>
 
         builder.Property(q => q.QuestionType)
             .HasConversion<int>()
-            .HasDefaultValue(QuestionType.MultipleChoice);
+            .HasDefaultValue(QuestionType.MultipleChoice)
+            .HasSentinel(QuestionType.Unspecified);
 
         builder.Property(q => q.TimeLimitInSeconds)
             .HasDefaultValue(QuizConstants.Defaults.DefaultQuestionTimeLimit);

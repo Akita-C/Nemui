@@ -7,7 +7,7 @@ namespace Nemui.Shared.Entities;
 public class Question : SoftDeletableEntity
 {
     public string Content { get; set; } = string.Empty;
-    public QuestionType QuestionType { get; set; } = QuestionType.MultipleChoice;
+    public QuestionType QuestionType { get; set; } = QuestionType.Unspecified;
     public int TimeLimitInSeconds { get; set; } = 30;
     public int Points { get; set; } = 100;
     public string? ImageUrl { get; set; }

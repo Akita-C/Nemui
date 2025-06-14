@@ -8,7 +8,6 @@ using Nemui.Shared.DTOs.Quiz;
 namespace Nemui.Api.Controllers;
 
 [Authorize]
-[ApiExplorerSettings(GroupName = "Questions")]
 public class QuestionsController : BaseApiController
 {
     private readonly IQuestionService _questionService;
