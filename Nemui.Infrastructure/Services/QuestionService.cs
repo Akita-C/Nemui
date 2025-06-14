@@ -460,8 +460,8 @@ public class QuestionService(
             ImageUrl = question.ImageUrl,
             Configuration = question.Configuration,
             Explanation = question.Explanation,
-            CreatedAt = question.CreatedAt,
-            UpdatedAt = question.UpdatedAt,
+            CreatedAt = question.CreatedAt.DateTime,
+            UpdatedAt = question.UpdatedAt?.DateTime,
             QuizId = question.QuizId,
             QuizTitle = question.Quiz?.Title ?? string.Empty
         };

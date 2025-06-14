@@ -34,7 +34,7 @@ public class AppDbContext : DbContext
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var currentUserId = _currentUserService.UserId;
-        var currentTime = DateTime.UtcNow;
+        var currentTime = DateTimeOffset.UtcNow;
 
         foreach (var entry in ChangeTracker.Entries<IAuditableEntity>())
         {

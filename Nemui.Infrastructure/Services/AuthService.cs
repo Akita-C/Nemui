@@ -111,7 +111,7 @@ public class AuthService : IAuthService
             Email = user.Email,
             Role = user.Role,
             IsEmailVerified = user.IsEmailVerified,
-            CreatedAt = user.CreatedAt,
+            CreatedAt = user.CreatedAt.DateTime,
             LastLoginAt = user.LastLoginAt,
             AvatarUrl = user.AvatarUrl
         };
@@ -188,7 +188,7 @@ public class AuthService : IAuthService
                 Email = user.Email,
                 Role = user.Role,
                 IsEmailVerified = user.IsEmailVerified,
-                CreatedAt = user.CreatedAt,
+                CreatedAt = user.CreatedAt.DateTime,
                 LastLoginAt = user.LastLoginAt
             }
         };
@@ -247,7 +247,7 @@ public class AuthService : IAuthService
                 Email = user.Email,
                 Role = user.Role,
                 IsEmailVerified = user.IsEmailVerified,
-                CreatedAt = user.CreatedAt,
+                CreatedAt = user.CreatedAt.DateTime,
                 LastLoginAt = user.LastLoginAt
             }
         };

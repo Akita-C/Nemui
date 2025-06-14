@@ -1,9 +1,11 @@
-﻿namespace Nemui.Shared.Common.Abstractions;
+﻿using Nemui.Shared.Common.Interfaces;
 
-public class AuditableEntity : BaseEntity
+namespace Nemui.Shared.Common.Abstractions;
+
+public class AuditableEntity : BaseEntity, IAuditableEntity
 {
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
     public string? CreatedBy { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
 }

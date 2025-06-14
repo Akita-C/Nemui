@@ -312,8 +312,8 @@ public class QuizService : IQuizService
             Category = quiz.Category,
             Tags = quiz.Tags,
             EstimatedDurationMinutes = quiz.EstimatedDurationMinutes,
-            CreatedAt = quiz.CreatedAt,
-            UpdatedAt = quiz.UpdatedAt,
+            CreatedAt = quiz.CreatedAt.DateTime,
+            UpdatedAt = quiz.UpdatedAt?.DateTime,
             CreatorId = quiz.CreatorId,
             CreatorName = quiz.Creator?.Name ?? string.Empty,
             QuestionCount = quiz.Questions?.Count ?? 0
@@ -351,7 +351,7 @@ public class QuizService : IQuizService
             IsPublic = quiz.IsPublic,
             Category = quiz.Category,
             EstimatedDurationMinutes = quiz.EstimatedDurationMinutes,
-            CreatedAt = quiz.CreatedAt,
+            CreatedAt = quiz.CreatedAt.DateTime,
             CreatorId = quiz.CreatorId,
             CreatorName = quiz.Creator?.Name ?? string.Empty,
             QuestionCount = quiz.Questions?.Count ?? 0

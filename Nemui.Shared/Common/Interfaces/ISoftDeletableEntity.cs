@@ -2,7 +2,7 @@
 
 public interface ISoftDeletableEntity : IAuditableEntity
 {
-    DateTime? DeletedAt { get; set; }   
+    DateTimeOffset? DeletedAt { get; set; }   
     string? DeletedBy { get; set; }
     bool IsDeleted { get; set; }
 }

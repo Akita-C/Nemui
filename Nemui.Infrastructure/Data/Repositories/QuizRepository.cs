@@ -91,9 +91,9 @@ public class QuizRepository(AppDbContext context) : Repository<Quiz>(context), I
         
         return await BuildQuizQuery()
             .Where(q => q.IsPublic && !q.IsDeleted && (
-                q.Title.Contains(lowerSearchTerm, StringComparison.CurrentCultureIgnoreCase) ||
-                (q.Description != null && q.Description.Contains(lowerSearchTerm, StringComparison.CurrentCultureIgnoreCase)) ||
-                (q.Category != null && q.Category.Contains(lowerSearchTerm, StringComparison.CurrentCultureIgnoreCase))
+                EF.Functions.ILike(q.Title, $"%{lowerSearchTerm}%") ||
+                (q.Description != null && EF.Functions.ILike(q.Description, $"%{lowerSearchTerm}%")) ||
+                (q.Category != null && EF.Functions.ILike(q.Category, $"%{lowerSearchTerm}%"))
             ))
             .OrderByDescending(q => q.CreatedAt)
             .Take(limit)
@@ -121,10 +121,10 @@ public class QuizRepository(AppDbContext context) : Repository<Quiz>(context), I
         {
             var searchTerm = request.Search.ToLower();
             query = query.Where(q =>
-                q.Title.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase) ||
+                EF.Functions.ILike(q.Title, $"%{searchTerm}%") ||
                 (q.Description != null &&
-                 q.Description.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase)) ||
-                (q.Category != null && q.Category.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase)));
+                 EF.Functions.ILike(q.Description, $"%{searchTerm}%")) ||
+                (q.Category != null && EF.Functions.ILike(q.Category, $"%{searchTerm}%")));
         }
 
         if (!string.IsNullOrEmpty(request.Category))
@@ -144,9 +144,11 @@ public class QuizRepository(AppDbContext context) : Repository<Quiz>(context), I
         if (string.IsNullOrEmpty(request.Cursor) || !DateTime.TryParse(request.Cursor, out var cursorDate))
             return query;
 
+        var utcCursorDate = cursorDate.ToUniversalTime();
+
         return request.IsDescending
-            ? query.Where(q => q.CreatedAt < cursorDate)
-            : query.Where(q => q.CreatedAt > cursorDate);
+            ? query.Where(q => q.CreatedAt < utcCursorDate)
+            : query.Where(q => q.CreatedAt > utcCursorDate);
     }
 
     private static IQueryable<Quiz> ApplyQuizSorting(IQueryable<Quiz> query, QuizListRequest request)

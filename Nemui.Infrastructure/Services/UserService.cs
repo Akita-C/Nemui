@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Nemui.Application.Common.Interfaces;
 using Nemui.Application.Repositories;
 using Nemui.Application.Services;
 using Nemui.Shared.DTOs.Auth;
@@ -39,7 +38,7 @@ public class UserService : IUserService
             Email = user.Email,
             Role = user.Role,
             IsEmailVerified = user.IsEmailVerified,
-            CreatedAt = user.CreatedAt,
+            CreatedAt = user.CreatedAt.DateTime,
             LastLoginAt = user.LastLoginAt,
             AvatarUrl = user.AvatarUrl,
         };
@@ -74,7 +73,7 @@ public class UserService : IUserService
             Email = user.Email,
             Role = user.Role,
             IsEmailVerified = user.IsEmailVerified,
-            CreatedAt = user.CreatedAt,
+            CreatedAt = user.CreatedAt.DateTime,
             LastLoginAt = user.LastLoginAt
         };
         
