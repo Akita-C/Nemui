@@ -37,7 +37,6 @@
     <Folder Include="Attributes\" />
     <Folder Include="Configurations\" />
     <Folder Include="Filters\" />
-    <Folder Include="Swagger\" />
   </ItemGroup>
 
   <Target Name="GenerateOpenApiSchema" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
