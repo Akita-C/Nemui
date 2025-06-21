@@ -4,7 +4,16 @@ namespace Nemui.Application.Services.Games.Draw;
 
 public interface IDrawGameService
 {
-    Task<DrawRoom?> GetRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
-    Task<Guid> CreateRoomAsync(DrawHost host, CreateDrawRoom createRoom, CancellationToken cancellationToken = default);
-    string GetRoomName(Guid roomId) => $"room:{roomId}";
+    Task<DrawRoom?> GetRoomAsync(Guid roomId);
+    Task<Guid> CreateRoomAsync(DrawHost host, CreateDrawRoom createRoom);
+    Task<bool> DeleteRoomAsync(Guid roomId);
+    Task<bool> IsRoomExistsAsync(Guid roomId);
+    Task<bool> IsRoomFullAsync(Guid roomId);
+    Task<bool> AddPlayerAsync(Guid roomId, DrawPlayer player);
+    Task<bool> RemovePlayerAsync(Guid roomId, DrawPlayer player);
+    Task<long> GetPlayerCountAsync(Guid roomId);
+    Task<List<DrawPlayer?>> GetAllPlayersAsync(string playerId, Guid roomId);
+    Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId);
+    string GetRoomKey(Guid roomId) => $"room:{roomId}";
+    string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:player";
 }

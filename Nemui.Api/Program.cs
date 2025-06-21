@@ -27,7 +27,8 @@ try
     builder.Services.AddCustomCors();
     builder.Services.AddCustomRateLimiting();
     builder.Services.AddSeeders();
-    
+    builder.Services.AddSignalr();
+
     var app = builder.Build();
     
     // Configure the HTTP request pipeline
@@ -52,7 +53,8 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
-    
+    app.UseSignalr();
+
     Log.Information("Nemui API application started successfully");
     app.Run();
 }

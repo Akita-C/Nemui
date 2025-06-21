@@ -1,4 +1,5 @@
 using FluentValidation;
+using Nemui.Api.Extensions.DrawGameExtensions;
 using Nemui.Application.Common.Interfaces;
 using Nemui.Application.Repositories;
 using Nemui.Application.Services;

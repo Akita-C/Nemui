@@ -4,9 +4,10 @@ namespace Nemui.Api.Hubs.Draw;
 
 public interface IDrawGameClient
 {
-    Task JoinRoom(DrawRoom room);
+    Task JoinRoom(DrawPlayer player);
     Task LeaveRoom();
-    Task UserJoined(string userName);
-    Task UserLeft(string userName);
+    Task UserJoined(DrawPlayer player);
+    Task UserLeft(DrawPlayer player);
     Task RoomMessageReceived(Guid senderId, string senderName, string message);
+    Task RoomDeleted();
 }
