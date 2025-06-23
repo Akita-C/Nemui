@@ -69,4 +69,31 @@ public class DrawGameHub(
         await Groups.RemoveFromGroupAsync(player.ConnectionId!, gameService.GetRoomKey(roomId));
         await Clients.GroupExcept(gameService.GetRoomKey(roomId), player.ConnectionId!).UserLeft(player);
     }
+
+    public async Task SetRoomState(Guid roomId, string state)
+    {
+        var result = await gameService.SetRoomStateAsync(roomId, currentUserService.UserId!, state);
+        if (!result)
+        {
+            logger.LogWarning("Attempted to set room state for non-existent room {RoomId} or non-host user {UserId}", roomId, currentUserService.UserId);
+            throw new HubException("Room not found or user is not the host.");
+        }
+        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).RoomStateUpdated(state);
+    }
+
+    public async Task SendCanvasUpdate(Guid roomId, string canvasData)
+    {
+        var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
+        var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
+
+        if (!isRoomExists || !isPlayerInRoom)
+        {
+            logger.LogWarning("Invalid canvas update attempt for room {RoomId} by user {UserId}",
+                roomId, currentUserService.UserId);
+            throw new HubException("Room not found or player not in room.");
+        }
+
+        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId)
+            .CanvasUpdated(canvasData);
+    }
 }

@@ -84,7 +84,24 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         return result;
     }
 
+    public async Task<bool> SetRoomStateAsync(Guid roomId, string playerID, string state)
+    {
+        var room = await GetRoomAsync(roomId);
+        if (room == null || room.Host.HostId != playerID) return false;
+        return await database.StringSetAsync(GetRoomStateKey(roomId), state, cacheExpirationTime);
+    }
+
+    public async Task<string?> GetRoomStateAsync(Guid roomId, string playerID)
+    {
+        var isRoomExists = await IsRoomExistsAsync(roomId);
+        var (isPlayerInRoom, playerInRoom) = await IsPlayerInRoomAsync(playerID, roomId);
+        if (!isRoomExists || !isPlayerInRoom || playerInRoom!.PlayerId != playerID) return null;
+        return await database.StringGetAsync(GetRoomStateKey(roomId));
+    }
+
     public string GetRoomKey(Guid roomId) => $"room:{roomId}";
 
     public string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:players";
+
+    public string GetRoomStateKey(Guid roomId) => $"room:{roomId}:state";
 }

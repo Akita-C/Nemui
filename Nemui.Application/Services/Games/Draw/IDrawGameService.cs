@@ -14,6 +14,9 @@ public interface IDrawGameService
     Task<long> GetPlayerCountAsync(Guid roomId);
     Task<List<DrawPlayer?>> GetAllPlayersAsync(string playerId, Guid roomId);
     Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId);
+    Task<bool> SetRoomStateAsync(Guid roomId, string playerID, string state);
+    Task<string?> GetRoomStateAsync(Guid roomId, string playerID);
     string GetRoomKey(Guid roomId) => $"room:{roomId}";
     string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:player";
+    string GetRoomStateKey(Guid roomId) => $"room:{roomId}:state";
 }

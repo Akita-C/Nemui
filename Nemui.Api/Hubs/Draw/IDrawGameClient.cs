@@ -10,4 +10,6 @@ public interface IDrawGameClient
     Task UserLeft(DrawPlayer player);
     Task RoomMessageReceived(Guid senderId, string senderName, string message);
     Task RoomDeleted();
+    Task RoomStateUpdated(string state);
+    Task CanvasUpdated(string canvasData);
 }
