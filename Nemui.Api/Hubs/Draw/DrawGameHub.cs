@@ -81,19 +81,15 @@ public class DrawGameHub(
         await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).RoomStateUpdated(state);
     }
 
-    public async Task SendCanvasUpdate(Guid roomId, string canvasData)
+    public async Task SendDrawAction(Guid roomId, DrawAction action)
     {
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
         var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
-
         if (!isRoomExists || !isPlayerInRoom)
         {
-            logger.LogWarning("Invalid canvas update attempt for room {RoomId} by user {UserId}",
-                roomId, currentUserService.UserId);
-            throw new HubException("Room not found or player not in room.");
+            logger.LogWarning("Invalid draw action attempt for room {RoomId} by user {UserId}", roomId, currentUserService.UserId);
+            throw new HubException("Room not found or user is not in room.");
         }
-
-        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId)
-            .CanvasUpdated(canvasData);
+        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).DrawActionReceived(action);
     }
 }
