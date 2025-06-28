@@ -1,15 +1,19 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using MessagePack;
 
 namespace Nemui.Shared.DTOs.Games.Draw;
 
+[MessagePackObject]
 public record DrawAction
 {
-    public string Id { get; init; } = string.Empty;
-
-    public DrawActionType Type { get; init; }
-    public long Timestamp { get; init; }
-    public object Data { get; init; } = new();
+    [Key("id")]
+    public string Id { get; set; } = string.Empty;
+    [Key("type")]
+    public DrawActionType Type { get; set; }
+    [Key("timestamp")]
+    public long Timestamp { get; set; }
+    [Key("data")]
+    public object Data { get; set; } = new();
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -19,5 +23,11 @@ public enum DrawActionType
     Shape,
     Clear,
     Undo,
-    Redo
+    Redo,
+    LiveStrokeStart,
+    LiveStrokeMove,
+    LiveStrokeEnd,
+    LiveShapeStart,
+    LiveShapeMove,
+    LiveShapeEnd,
 }

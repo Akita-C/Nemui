@@ -1,22 +1,50 @@
+using MessagePack;
+
 namespace Nemui.Shared.DTOs.Games.Draw;
 
+[MessagePackObject]
 public record ShapeActionData
 {
-    public string ShapeType { get; init; } = string.Empty;
-    public ShapeProperties Properties { get; init; } = new();
+    [Key("shapeType")]
+    public string ShapeType { get; set; } = string.Empty;
+    
+    [Key("properties")]
+    public ShapeProperties Properties { get; set; } = new();
 }
 
+[MessagePackObject]
 public record ShapeProperties
 {
+    [Key("left")]
     public double Left { get; init; }
+    
+    [Key("top")]
     public double Top { get; init; }
-    public double? Width { get; init; } // for rectangle
-    public double? Height { get; init; } // for rectangle
-    public double? Radius { get; init; } // for circle
-    public double? X1 { get; init; } // for line
-    public double? Y1 { get; init; } // for line
-    public double? X2 { get; init; } // for line
-    public double? Y2 { get; init; } // for line
-    public string Color { get; init; } = string.Empty;
+    
+    [Key("width")]
+    public double? Width { get; init; }
+    
+    [Key("height")]
+    public double? Height { get; init; }
+    
+    [Key("radius")]
+    public double? Radius { get; init; }
+    
+    [Key("x1")]
+    public double? X1 { get; init; }
+    
+    [Key("y1")]
+    public double? Y1 { get; init; }
+    
+    [Key("x2")]
+    public double? X2 { get; init; }
+    
+    [Key("y2")]
+    public double? Y2 { get; init; }
+    
+    [Key("color")]
+    public string Color { get; set; } = string.Empty;
+    
+    [Key("strokeWidth")]
     public int StrokeWidth { get; init; }
 }

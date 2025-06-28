@@ -92,4 +92,16 @@ public class DrawGameHub(
         }
         await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).DrawActionReceived(action);
     }
+
+    public async Task SendLiveDrawAction(Guid roomId, DrawAction action) 
+    {
+        var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
+        var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
+        if (!isRoomExists || !isPlayerInRoom)
+        {
+            logger.LogWarning("Invalid live draw action attempt for room {RoomId} by user {UserId}", roomId, currentUserService.UserId);
+            throw new HubException("Room not found or user is not in room.");
+        }
+        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).LiveDrawActionReceived(action);
+    }
 }

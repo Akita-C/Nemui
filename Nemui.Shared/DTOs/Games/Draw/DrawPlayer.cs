@@ -1,3 +1,16 @@
+
+using MessagePack;
+
 namespace Nemui.Shared.DTOs.Games.Draw;
 
-public record DrawPlayer(string? ConnectionId, string PlayerId, string PlayerName, string? PlayerAvatar);
+[MessagePackObject]
+public record DrawPlayer(
+    [property: Key("connectionId")]
+    string? ConnectionId, 
+    [property: Key("playerId")]
+    string PlayerId, 
+    [property: Key("playerName")]
+    string PlayerName, 
+    [property: Key("playerAvatar")]
+    string? PlayerAvatar
+);

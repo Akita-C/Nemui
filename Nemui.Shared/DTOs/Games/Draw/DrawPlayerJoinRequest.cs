@@ -1,3 +1,14 @@
+
+using MessagePack;
+
 namespace Nemui.Shared.DTOs.Games.Draw;
 
-public record DrawPlayerJoinRequest(string PlayerId, string PlayerName, string PlayerAvatar);
+[MessagePackObject]
+public record DrawPlayerJoinRequest(
+    [property: Key("playerId")]
+    string PlayerId, 
+    [property: Key("playerName")]
+    string PlayerName, 
+    [property: Key("playerAvatar")]
+    string? PlayerAvatar
+);

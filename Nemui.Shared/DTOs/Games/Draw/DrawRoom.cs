@@ -1,9 +1,16 @@
-﻿namespace Nemui.Shared.DTOs.Games.Draw;
+﻿using MessagePack;
 
+namespace Nemui.Shared.DTOs.Games.Draw;
+
+[MessagePackObject]
 public record DrawRoom
 {
-    public Guid RoomId { get; init; }
-    public string RoomName { get; init; } = string.Empty;
-    public DrawHost Host { get; init; } = new();
-    public DrawRoomConfig Config { get; init; } = new();
+    [Key("roomId")]
+    public Guid RoomId { get; set; }
+    [Key("roomName")]
+    public string RoomName { get; set; } = string.Empty;
+    [Key("host")]
+    public DrawHost Host { get; set; } = new();
+    [Key("config")]
+    public DrawRoomConfig Config { get; set; } = new();
 };

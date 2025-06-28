@@ -14,6 +14,7 @@
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.16" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="9.0.6" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.16">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -42,8 +43,7 @@
   <Target Name="GenerateOpenApiSchema" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
     <Message Text="🔄 Generating OpenAPI schema..." Importance="high" />
     <MakeDir Directories="../../sutoresu/src/lib/api" />
-    <Exec Command="swagger tofile --output ../../sutoresu/src/lib/api/openapi.json $(OutputPath)$(AssemblyName).dll v1"
-          ContinueOnError="false" />
+    <Exec Command="swagger tofile --output ../../sutoresu/src/lib/api/openapi.json $(OutputPath)$(AssemblyName).dll v1" ContinueOnError="false" />
     <Message Text="✅ OpenAPI schema generated at: ../../sutoresu/src/lib/api/openapi.json" Importance="high" />
   </Target>
 </Project>
