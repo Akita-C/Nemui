@@ -8,15 +8,18 @@ public static class SignalrExtensions
 {
     public static IServiceCollection AddSignalr(this IServiceCollection services)
     {
-        services.AddSignalR()
-            .AddMessagePackProtocol(options =>
-            {
-                options.SerializerOptions = MessagePackSerializerOptions.Standard
-                    .WithResolver(CompositeResolver.Create(
-                        DynamicEnumAsStringResolver.Instance,
-                        StandardResolver.Instance
-                    ));
-            });
+        services.AddSignalR(options =>
+        {
+            options.StreamBufferCapacity = 50;
+        })
+        .AddMessagePackProtocol(options =>
+        {
+            options.SerializerOptions = MessagePackSerializerOptions.Standard
+                .WithResolver(CompositeResolver.Create(
+                    DynamicEnumAsStringResolver.Instance,
+                    StandardResolver.Instance
+                ));
+        });
         services.AddDrawGame();
         return services;
     }
