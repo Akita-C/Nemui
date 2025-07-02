@@ -1,4 +1,5 @@
 using Nemui.Api.Hubs.Draw;
+using Nemui.Api.Services;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Infrastructure.Services.Games.Draw;
 
@@ -10,6 +11,9 @@ public static class DrawGameExtension
     {
         services.AddScoped<IDrawGameService, RedisDrawGameService>();
         services.AddSingleton<IRoundTimerService, RoundTimerService>();
+        services.AddScoped<IDrawGameEventHandler, DrawGameEventHandler>();
+        services.AddScoped<IDrawGameNotificationService, SignalRDrawGameNotificationService>();
+        services.AddHostedService<DrawGameEventHostedService>();
 
         return services;
     }

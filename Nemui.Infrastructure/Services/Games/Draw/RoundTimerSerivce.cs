@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Games.Draw;
 

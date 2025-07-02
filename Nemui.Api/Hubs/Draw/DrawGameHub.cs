@@ -7,29 +7,13 @@ using Nemui.Shared.DTOs.Games.Draw;
 namespace Nemui.Api.Hubs.Draw;
 
 [Authorize]
-public class DrawGameHub : Hub<IDrawGameClient>
+public class DrawGameHub(
+    IDrawGameService gameService,
+    IRoundTimerService roundTimerService,
+    ILogger<DrawGameHub> logger,
+    ICurrentUserService currentUserService
+) : Hub<IDrawGameClient>
 {
-    private readonly IDrawGameService gameService;
-    private readonly IRoundTimerService roundTimerService;
-    private readonly ILogger<DrawGameHub> logger;
-    private readonly ICurrentUserService currentUserService;
-
-    public DrawGameHub(
-        IDrawGameService gameService,
-        IRoundTimerService roundTimerService,
-        ILogger<DrawGameHub> logger,
-        ICurrentUserService currentUserService
-    )
-    {
-        this.gameService = gameService;
-        this.roundTimerService = roundTimerService;
-        this.logger = logger;
-        this.currentUserService = currentUserService;
-
-        roundTimerService.OnRoundStarted += OnRoundStartedAsync;
-        roundTimerService.OnRoundEnded += OnRoundEndedAsync;
-    }
-
     public async Task JoinRoom(Guid roomId, DrawPlayerJoinRequest request)
     {
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
@@ -138,6 +122,7 @@ public class DrawGameHub : Hub<IDrawGameClient>
         }
 
         var totalRounds = room.Config.MaxRoundPerPlayers * (await gameService.GetPlayerCountAsync(roomId));
+        logger.LogInformation("Starting round {RoundNumber} for room {RoomId} with total rounds {TotalRounds} and duration {DurationSeconds}", roundNumber, roomId, totalRounds, room.Config.RoundDurationSeconds);
         await roundTimerService.StartRoundAsync(roomId, roundNumber, (int)totalRounds, room.Config.RoundDurationSeconds);
     }
 
@@ -150,15 +135,5 @@ public class DrawGameHub : Hub<IDrawGameClient>
         }
 
         await roundTimerService.StopRoundAsync(roomId);
-    }
-
-    private async Task OnRoundStartedAsync(RoundStartedEvent roundEvent)
-    {
-        await Clients.Group(gameService.GetRoomKey(roundEvent.RoomId)).RoundStarted(roundEvent);
-    }
-
-    private async Task OnRoundEndedAsync(RoundEndedEvent roundEvent)
-    {
-        await Clients.Group(gameService.GetRoomKey(roundEvent.RoomId)).RoundEnded(roundEvent);
     }
 }
