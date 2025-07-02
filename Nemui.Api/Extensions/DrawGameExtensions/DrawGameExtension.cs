@@ -9,7 +9,8 @@ public static class DrawGameExtension
     public static IServiceCollection AddDrawGame(this IServiceCollection services)
     {
         services.AddScoped<IDrawGameService, RedisDrawGameService>();
-        
+        services.AddSingleton<IRoundTimerService, RoundTimerService>();
+
         return services;
     }
 
@@ -18,4 +19,4 @@ public static class DrawGameExtension
         app.MapHub<DrawGameHub>("/hubs/draw-game");
         return app;
     }
-} 
+}

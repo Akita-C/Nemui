@@ -9,4 +9,6 @@ public record DrawRoomConfig
     public int MaxPlayers { get; set; }
     [Key("maxRoundPerPlayers")]
     public int MaxRoundPerPlayers { get; set; }
+    [Key("roundDurationSeconds")]
+    public int RoundDurationSeconds { get; set; } = 80;
 };

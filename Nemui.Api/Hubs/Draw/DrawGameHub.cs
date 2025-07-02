@@ -7,12 +7,29 @@ using Nemui.Shared.DTOs.Games.Draw;
 namespace Nemui.Api.Hubs.Draw;
 
 [Authorize]
-public class DrawGameHub(
-    IDrawGameService gameService,
-    ILogger<DrawGameHub> logger,
-    ICurrentUserService currentUserService
-) : Hub<IDrawGameClient>
+public class DrawGameHub : Hub<IDrawGameClient>
 {
+    private readonly IDrawGameService gameService;
+    private readonly IRoundTimerService roundTimerService;
+    private readonly ILogger<DrawGameHub> logger;
+    private readonly ICurrentUserService currentUserService;
+
+    public DrawGameHub(
+        IDrawGameService gameService,
+        IRoundTimerService roundTimerService,
+        ILogger<DrawGameHub> logger,
+        ICurrentUserService currentUserService
+    )
+    {
+        this.gameService = gameService;
+        this.roundTimerService = roundTimerService;
+        this.logger = logger;
+        this.currentUserService = currentUserService;
+
+        roundTimerService.OnRoundStarted += OnRoundStartedAsync;
+        roundTimerService.OnRoundEnded += OnRoundEndedAsync;
+    }
+
     public async Task JoinRoom(Guid roomId, DrawPlayerJoinRequest request)
     {
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
@@ -83,6 +100,13 @@ public class DrawGameHub(
 
     public async Task SendDrawAction(Guid roomId, DrawAction action)
     {
+        var isRoundActive = await roundTimerService.IsRoundActiveAsync(roomId);
+        if (!isRoundActive)
+        {
+            logger.LogWarning("Invalid draw action attempt for room {RoomId} by user {UserId} because round is not active", roomId, currentUserService.UserId);
+            throw new HubException("Round is not active.");
+        }
+
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
         var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
         if (!isRoomExists || !isPlayerInRoom)
@@ -93,15 +117,48 @@ public class DrawGameHub(
         await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).DrawActionReceived(action);
     }
 
-    public async Task SendLiveDrawAction(Guid roomId, DrawAction action) 
+    // public async Task SendLiveDrawAction(Guid roomId, DrawAction action) 
+    // {
+    //     var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
+    //     var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
+    //     if (!isRoomExists || !isPlayerInRoom)
+    //     {
+    //         logger.LogWarning("Invalid live draw action attempt for room {RoomId} by user {UserId}", roomId, currentUserService.UserId);
+    //         throw new HubException("Room not found or user is not in room.");
+    //     }
+    //     await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).LiveDrawActionReceived(action);
+    // }
+
+    public async Task StartRound(Guid roomId, int roundNumber)
     {
-        var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
-        var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
-        if (!isRoomExists || !isPlayerInRoom)
+        var room = await gameService.GetRoomAsync(roomId);
+        if (room == null || room.Host.HostId != currentUserService.UserId)
         {
-            logger.LogWarning("Invalid live draw action attempt for room {RoomId} by user {UserId}", roomId, currentUserService.UserId);
-            throw new HubException("Room not found or user is not in room.");
+            throw new HubException("Room not found or user is not the host.");
         }
-        await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).LiveDrawActionReceived(action);
+
+        var totalRounds = room.Config.MaxRoundPerPlayers * (await gameService.GetPlayerCountAsync(roomId));
+        await roundTimerService.StartRoundAsync(roomId, roundNumber, (int)totalRounds, room.Config.RoundDurationSeconds);
+    }
+
+    public async Task EndRound(Guid roomId)
+    {
+        var room = await gameService.GetRoomAsync(roomId);
+        if (room == null || room.Host.HostId != currentUserService.UserId)
+        {
+            throw new HubException("Room not found or user is not the host.");
+        }
+
+        await roundTimerService.StopRoundAsync(roomId);
+    }
+
+    private async Task OnRoundStartedAsync(RoundStartedEvent roundEvent)
+    {
+        await Clients.Group(gameService.GetRoomKey(roundEvent.RoomId)).RoundStarted(roundEvent);
+    }
+
+    private async Task OnRoundEndedAsync(RoundEndedEvent roundEvent)
+    {
+        await Clients.Group(gameService.GetRoomKey(roundEvent.RoomId)).RoundEnded(roundEvent);
     }
 }

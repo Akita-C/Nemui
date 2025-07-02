@@ -43,7 +43,7 @@
   <Target Name="GenerateOpenApiSchema" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
     <Message Text="🔄 Generating OpenAPI schema..." Importance="high" />
     <MakeDir Directories="../../sutoresu/src/lib/api" />
-    <Exec Command="swagger tofile --output ../../sutoresu/src/lib/api/openapi.json $(OutputPath)$(AssemblyName).dll v1" ContinueOnError="false" />
+    <Exec Command="dotnet swagger tofile --output ../../sutoresu/src/lib/api/openapi.json $(OutputPath)$(AssemblyName).dll v1" ContinueOnError="false" />
     <Message Text="✅ OpenAPI schema generated at: ../../sutoresu/src/lib/api/openapi.json" Importance="high" />
   </Target>
 </Project>

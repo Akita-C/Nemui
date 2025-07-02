@@ -9,7 +9,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<SeederManager>();
         services.AddScoped<ISeeder, QuizSeeder>();
-        
+
         return services;
     }
 }

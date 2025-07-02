@@ -12,5 +12,7 @@ public interface IDrawGameClient
     Task RoomDeleted();
     Task RoomStateUpdated(string state);
     Task DrawActionReceived(DrawAction action);
-    Task LiveDrawActionReceived(DrawAction action);
+    // Task LiveDrawActionReceived(DrawAction action);
+    Task RoundStarted(RoundStartedEvent roundEvent);
+    Task RoundEnded(RoundEndedEvent roundEvent);
 }
