@@ -14,9 +14,31 @@ public interface IDrawGameService
     Task<long> GetPlayerCountAsync(Guid roomId);
     Task<List<DrawPlayer?>> GetAllPlayersAsync(string playerId, Guid roomId);
     Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId);
-    Task<bool> SetRoomStateAsync(Guid roomId, string playerID, string state);
-    Task<string?> GetRoomStateAsync(Guid roomId, string playerID);
-    string GetRoomKey(Guid roomId) => $"room:{roomId}";
-    string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:player";
-    string GetRoomStateKey(Guid roomId) => $"room:{roomId}:state";
+
+    // Game session methods
+    Task<DrawGameSession?> GetGameSessionAsync(Guid roomId);
+    Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds);
+    Task<string?> StartNextRoundAsync(Guid roomId);
+    Task<bool> UpdateGameSessionAsync(Guid roomId, DrawGameSession session);
+    Task<string?> GetCurrentDrawerAsync(Guid roomId);
+
+    // Word pool methods
+    Task InitializeWordPoolAsync(Guid roomId, int wordCount);
+    Task<string?> ConsumeRandomWordAsync(Guid roomId);
+    Task ResetWordPoolAsync(Guid roomId, int wordCount);
+
+    // Player scores methods
+    Task<int> GetPlayerScoreAsync(Guid roomId, string playerId);
+    Task<Dictionary<string, int>> GetAllPlayerScoresAsync(Guid roomId);
+    Task<bool> SetPlayerScoreAsync(Guid roomId, string playerId, int score);
+    Task<long> IncrementPlayerScoreAsync(Guid roomId, string playerId, int increment);
+    Task<bool> ResetPlayerScoresAsync(Guid roomId);
+
+    // Key generation methods
+    string GetRoomMetadataKey(Guid roomId) => $"room:{roomId}:metadata";
+    string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:players";
+    string GetRoomGameKey(Guid roomId) => $"room:{roomId}:game";
+    string GetRoomTurnOrderKey(Guid roomId) => $"room:{roomId}:turn_order";
+    string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
+    string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
 }
