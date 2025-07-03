@@ -21,33 +21,24 @@ public class SignalRDrawGameNotificationService : IDrawGameNotificationService
         this.logger = logger;
     }
 
-    public async Task NotifyRoundStartedAsync(Guid roomId, RoundStartedEvent roundEvent)
+    public async Task NotifyRoundStartedAsync(RoundStartedEvent roundEvent)
     {
-        try
-        {
-            var roomKey = gameService.GetRoomKey(roomId);
-            await hubContext.Clients.Group(roomKey).RoundStarted(roundEvent);
-            logger.LogDebug("Round started notification sent to room {RoomId}", roomId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send round started notification to room {RoomId}", roomId);
-            throw;
-        }
+        var roomKey = gameService.GetRoomKey(roundEvent.RoomId);
+        await hubContext.Clients.Group(roomKey).RoundStarted(roundEvent);
+        logger.LogDebug("Round started notification sent to room {RoomId}", roundEvent.RoomId);
     }
 
-    public async Task NotifyRoundEndedAsync(Guid roomId, RoundEndedEvent roundEvent)
+    public async Task NotifyRoundEndedAsync(RoundEndedEvent roundEvent)
     {
-        try
-        {
-            var roomKey = gameService.GetRoomKey(roomId);
-            await hubContext.Clients.Group(roomKey).RoundEnded(roundEvent);
-            logger.LogDebug("Round ended notification sent to room {RoomId}", roomId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send round ended notification to room {RoomId}", roomId);
-            throw;
-        }
+        var roomKey = gameService.GetRoomKey(roundEvent.RoomId);
+        await hubContext.Clients.Group(roomKey).RoundEnded(roundEvent);
+        logger.LogDebug("Round ended notification sent to room {RoomId}", roundEvent.RoomId);
+    }
+
+    public async Task NotifyPhaseChangedAsync(PhaseChangedEvent phaseEvent)
+    {
+        var roomKey = gameService.GetRoomKey(phaseEvent.RoomId);
+        await hubContext.Clients.Group(roomKey).PhaseChanged(phaseEvent);
+        logger.LogDebug("Phase changed to {Phase} notification sent to room {RoomId}", phaseEvent.Phase, phaseEvent.RoomId);
     }
 }

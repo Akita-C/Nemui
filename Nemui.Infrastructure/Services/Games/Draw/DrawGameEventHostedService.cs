@@ -5,32 +5,19 @@ using Nemui.Application.Services.Games.Draw;
 
 namespace Nemui.Infrastructure.Services.Games.Draw;
 
-public class DrawGameEventHostedService : IHostedService
+public class DrawGameEventHostedService(
+    IRoundTimerService roundTimerService,
+    IDrawGameNotificationService drawGameNotificationService,
+    ILogger<DrawGameEventHostedService> logger
+) : IHostedService
 {
-    private readonly IServiceProvider serviceProvider;
-    private readonly ILogger<DrawGameEventHostedService> logger;
-    private IServiceScope? scope;
-    private IRoundTimerService? roundTimerService;
-    private IDrawGameEventHandler? drawGameEventHandler;
-
-    public DrawGameEventHostedService(
-        IServiceProvider serviceProvider,
-        ILogger<DrawGameEventHostedService> logger
-    )
-    {
-        this.serviceProvider = serviceProvider;
-        this.logger = logger;
-    }
-
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Starting DrawGameEventHostedService");
-        scope = serviceProvider.CreateScope();
-        roundTimerService = scope.ServiceProvider.GetRequiredService<IRoundTimerService>();
-        drawGameEventHandler = scope.ServiceProvider.GetRequiredService<IDrawGameEventHandler>();
 
-        roundTimerService.OnRoundStarted += drawGameEventHandler.HandleRoundStartedAsync;
-        roundTimerService.OnRoundEnded += drawGameEventHandler.HandleRoundEndedAsync;
+        roundTimerService.OnRoundStarted += drawGameNotificationService.NotifyRoundStartedAsync;
+        roundTimerService.OnPhaseChanged += drawGameNotificationService.NotifyPhaseChangedAsync;
+        roundTimerService.OnRoundEnded += drawGameNotificationService.NotifyRoundEndedAsync;
 
         logger.LogInformation("DrawGameEventHostedService started");
         await Task.CompletedTask;
@@ -39,13 +26,12 @@ public class DrawGameEventHostedService : IHostedService
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Stopping DrawGameEventHostedService");
-        if (roundTimerService != null && drawGameEventHandler != null)
-        {
-            roundTimerService.OnRoundStarted -= drawGameEventHandler.HandleRoundStartedAsync;
-            roundTimerService.OnRoundEnded -= drawGameEventHandler.HandleRoundEndedAsync;
-        }
 
-        scope?.Dispose();
+        roundTimerService.OnRoundStarted -= drawGameNotificationService.NotifyRoundStartedAsync;
+        roundTimerService.OnPhaseChanged -= drawGameNotificationService.NotifyPhaseChangedAsync;
+        roundTimerService.OnRoundEnded -= drawGameNotificationService.NotifyRoundEndedAsync;
+
+        logger.LogInformation("DrawGameEventHostedService stopped");
         await Task.CompletedTask;
     }
 }

@@ -9,10 +9,9 @@ public static class DrawGameExtension
 {
     public static IServiceCollection AddDrawGame(this IServiceCollection services)
     {
-        services.AddScoped<IDrawGameService, RedisDrawGameService>();
+        services.AddSingleton<IDrawGameService, RedisDrawGameService>();
         services.AddSingleton<IRoundTimerService, RoundTimerService>();
-        services.AddScoped<IDrawGameEventHandler, DrawGameEventHandler>();
-        services.AddScoped<IDrawGameNotificationService, SignalRDrawGameNotificationService>();
+        services.AddSingleton<IDrawGameNotificationService, SignalRDrawGameNotificationService>();
         services.AddHostedService<DrawGameEventHostedService>();
 
         return services;

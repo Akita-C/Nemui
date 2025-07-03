@@ -15,4 +15,5 @@ public interface IDrawGameClient
     // Task LiveDrawActionReceived(DrawAction action);
     Task RoundStarted(RoundStartedEvent roundEvent);
     Task RoundEnded(RoundEndedEvent roundEvent);
+    Task PhaseChanged(PhaseChangedEvent phaseEvent);
 }

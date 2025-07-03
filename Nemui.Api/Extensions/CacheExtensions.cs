@@ -11,7 +11,7 @@ public static class CacheExtensions
     {
         var redisSettings = configuration.GetSection(RedisSettings.SectionName).Get<RedisSettings>();
         if (redisSettings == null) throw new ArgumentNullException(nameof(redisSettings));
-        
+
         services.AddStackExchangeRedisCache(options =>
         {
             options.InstanceName = redisSettings.InstanceName;
@@ -36,15 +36,15 @@ public static class CacheExtensions
             return connection;
         });
 
-        services.AddScoped<IDatabase>(options =>
+        services.AddSingleton<IDatabase>(options =>
         {
             var connection = options.GetRequiredService<IConnectionMultiplexer>();
             return connection.GetDatabase();
         });
-        
+
         services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<IUserCacheService, UserCacheService>();
-        
+
         return services;
     }
-} 
+}

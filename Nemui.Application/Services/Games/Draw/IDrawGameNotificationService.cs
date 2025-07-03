@@ -4,6 +4,7 @@ namespace Nemui.Application.Services.Games.Draw;
 
 public interface IDrawGameNotificationService
 {
-    Task NotifyRoundStartedAsync(Guid roomId, RoundStartedEvent roundEvent);
-    Task NotifyRoundEndedAsync(Guid roomId, RoundEndedEvent roundEvent);
+    Task NotifyRoundStartedAsync(RoundStartedEvent roundEvent);
+    Task NotifyRoundEndedAsync(RoundEndedEvent roundEvent);
+    Task NotifyPhaseChangedAsync(PhaseChangedEvent phaseEvent);
 }

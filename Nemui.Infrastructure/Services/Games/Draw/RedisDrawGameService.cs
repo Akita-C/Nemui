@@ -50,7 +50,8 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         var isRoomExists = await IsRoomExistsAsync(roomId);
         var (isPlayerAlreadyInRoom, playerInRoom) = await IsPlayerInRoomAsync(player.PlayerId, roomId);
         // Cái này chỉ có thể xảy ra đối với host do khi tạo phòng thì host chưa có connectionId
-        if (isPlayerAlreadyInRoom && playerInRoom!.ConnectionId == null) {
+        if (isPlayerAlreadyInRoom && playerInRoom!.ConnectionId == null)
+        {
             await database.SetRemoveAsync(GetRoomPlayerKey(roomId), JsonSerializer.Serialize(playerInRoom));
         }
         var result = isRoomExists && await database.SetAddAsync(GetRoomPlayerKey(roomId), JsonSerializer.Serialize(player));
@@ -69,7 +70,7 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         return await database.SetLengthAsync(GetRoomPlayerKey(roomId));
     }
 
-    public async Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId) 
+    public async Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId)
     {
         var players = await database.SetMembersAsync(GetRoomPlayerKey(roomId));
         var player = players.FirstOrDefault(player => player.HasValue && JsonSerializer.Deserialize<DrawPlayer>(player!)!.PlayerId == playerId);

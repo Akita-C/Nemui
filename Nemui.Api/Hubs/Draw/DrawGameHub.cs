@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Nemui.Application.Common.Interfaces;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Games.Draw;
+using Nemui.Shared.Enums;
 
 namespace Nemui.Api.Hubs.Draw;
 
@@ -84,11 +85,11 @@ public class DrawGameHub(
 
     public async Task SendDrawAction(Guid roomId, DrawAction action)
     {
-        var isRoundActive = await roundTimerService.IsRoundActiveAsync(roomId);
-        if (!isRoundActive)
+        var isDrawingPhase = await roundTimerService.IsPhaseActiveAsync(roomId, DrawGamePhase.Drawing);
+        if (!isDrawingPhase)
         {
-            logger.LogWarning("Invalid draw action attempt for room {RoomId} by user {UserId} because round is not active", roomId, currentUserService.UserId);
-            throw new HubException("Round is not active.");
+            logger.LogWarning("Invalid draw action attempt for room {RoomId} by user {UserId} because drawing phase is not active", roomId, currentUserService.UserId);
+            throw new HubException("Drawing phase is not active.");
         }
 
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
@@ -122,8 +123,7 @@ public class DrawGameHub(
         }
 
         var totalRounds = room.Config.MaxRoundPerPlayers * (await gameService.GetPlayerCountAsync(roomId));
-        logger.LogInformation("Starting round {RoundNumber} for room {RoomId} with total rounds {TotalRounds} and duration {DurationSeconds}", roundNumber, roomId, totalRounds, room.Config.RoundDurationSeconds);
-        await roundTimerService.StartRoundAsync(roomId, roundNumber, (int)totalRounds, room.Config.RoundDurationSeconds);
+        await roundTimerService.StartRoundAsync(roomId, roundNumber, (int)totalRounds, room.Config);
     }
 
     public async Task EndRound(Guid roomId)
