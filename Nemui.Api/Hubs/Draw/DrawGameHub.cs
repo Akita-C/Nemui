@@ -123,17 +123,6 @@ public class DrawGameHub(
         }
 
         var totalRounds = room.Config.MaxRoundPerPlayers * (await gameService.GetPlayerCountAsync(roomId));
-        await roundTimerService.StartRoundAsync(roomId, roundNumber, (int)totalRounds, room.Config);
-    }
-
-    public async Task EndRound(Guid roomId)
-    {
-        var room = await gameService.GetRoomAsync(roomId);
-        if (room == null || room.Host.HostId != currentUserService.UserId)
-        {
-            throw new HubException("Room not found or user is not the host.");
-        }
-
-        await roundTimerService.StopRoundAsync(roomId);
+        await roundTimerService.StartRoundAsync(roomId, (int)totalRounds, room.Config);
     }
 }

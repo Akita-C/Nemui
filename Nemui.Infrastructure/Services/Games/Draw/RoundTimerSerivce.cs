@@ -11,10 +11,10 @@ public class RoundTimerService : IRoundTimerService
     private bool isDisposed = false;
 
     public event Func<RoundStartedEvent, Task>? OnRoundStarted;
-    public event Func<RoundEndedEvent, Task>? OnRoundEnded;
+    public event Func<EndedGameEvent, Task>? OnEndedGame;
     public event Func<PhaseChangedEvent, Task>? OnPhaseChanged;
 
-    public async Task StartRoundAsync(Guid roomId, int roundNumber, int totalRounds, DrawRoomConfig config)
+    public async Task StartRoundAsync(Guid roomId, int totalRounds, DrawRoomConfig config)
     {
         if (isDisposed) return;
 
@@ -23,7 +23,6 @@ public class RoundTimerService : IRoundTimerService
 
         var roundTimer = new RoundTimer(
             roomId,
-            roundNumber,
             totalRounds,
             config,
             OnTimerElapsed,
@@ -37,7 +36,7 @@ public class RoundTimerService : IRoundTimerService
             var startEvent = new RoundStartedEvent
             {
                 RoomId = roomId,
-                RoundNumber = roundNumber,
+                RoundNumber = roundTimer.RoundNumber,
                 TotalRounds = totalRounds,
                 DurationSeconds = config.DrawingDurationSeconds,
                 StartTime = DateTimeOffset.UtcNow
@@ -92,20 +91,18 @@ public class RoundTimerService : IRoundTimerService
         return Task.FromResult<DrawGamePhase?>(null);
     }
 
-    private async Task OnTimerElapsed(Guid roomId, int roundNumber, int totalRounds)
+    private async Task OnTimerElapsed(Guid roomId)
     {
         if (activeRounds.TryRemove(roomId, out var roundTimer))
         {
             roundTimer.Dispose();
 
-            var endEvent = new RoundEndedEvent
+            var endEvent = new EndedGameEvent
             {
-                RoomId = roomId,
-                RoundNumber = roundNumber,
-                IsGameFinished = roundNumber >= totalRounds
+                RoomId = roomId
             };
 
-            if (OnRoundEnded != null) await OnRoundEnded(endEvent);
+            if (OnEndedGame != null) await OnEndedGame(endEvent);
         }
     }
 
@@ -130,10 +127,10 @@ public class RoundTimerService : IRoundTimerService
     private class RoundTimer : IDisposable
     {
         private readonly Guid roomId;
-        private readonly int roundNumber;
+        private int roundNumber = 0;
         private readonly int totalRounds;
         private readonly DrawRoomConfig config;
-        private readonly Func<Guid, int, int, Task> onRoundElapsed;
+        private readonly Func<Guid, Task> onEndedGame;
         private readonly Func<PhaseChangedEvent, Task> onPhaseElapsed;
 
         private Timer? currentTimer;
@@ -141,6 +138,7 @@ public class RoundTimerService : IRoundTimerService
         private DateTimeOffset phaseStartTime;
 
         public DrawGamePhase CurrentPhase => currentPhase;
+        public int RoundNumber => roundNumber;
 
         public int RemainingSeconds
         {
@@ -154,22 +152,24 @@ public class RoundTimerService : IRoundTimerService
 
         public RoundTimer(
             Guid roomId,
-            int roundNumber,
             int totalRounds,
             DrawRoomConfig config,
-            Func<Guid, int, int, Task> onRoundElapsed,
+            Func<Guid, Task> onEndedGame,
             Func<PhaseChangedEvent, Task> onPhaseElapsed
         )
         {
             this.roomId = roomId;
-            this.roundNumber = roundNumber;
             this.totalRounds = totalRounds;
             this.config = config;
-            this.onRoundElapsed = onRoundElapsed;
+            this.onEndedGame = onEndedGame;
             this.onPhaseElapsed = onPhaseElapsed;
         }
 
-        public void Start() => StartPhase(DrawGamePhase.Drawing);
+        public void Start()
+        {
+            roundNumber = 1;
+            StartPhase(DrawGamePhase.Drawing);
+        }
 
         private void StartPhase(DrawGamePhase phase)
         {
@@ -198,6 +198,8 @@ public class RoundTimerService : IRoundTimerService
 
                 if (nextPhase.HasValue)
                 {
+                    if (nextPhase == DrawGamePhase.Reveal) roundNumber++;
+
                     // Transition to next phase
                     var phaseEvent = new PhaseChangedEvent
                     {
@@ -213,8 +215,8 @@ public class RoundTimerService : IRoundTimerService
                 }
                 else
                 {
-                    // Round completed
-                    await onRoundElapsed(roomId, roundNumber, totalRounds);
+                    // Game completed
+                    await onEndedGame(roomId);
                 }
             }
             catch (Exception ex)
@@ -223,11 +225,11 @@ public class RoundTimerService : IRoundTimerService
             }
         }
 
-        private static DrawGamePhase? GetNextPhase(DrawGamePhase currentPhase) => currentPhase switch
+        private DrawGamePhase? GetNextPhase(DrawGamePhase currentPhase) => currentPhase switch
         {
             DrawGamePhase.Drawing => DrawGamePhase.Guessing,
             DrawGamePhase.Guessing => DrawGamePhase.Reveal,
-            DrawGamePhase.Reveal => null,
+            DrawGamePhase.Reveal => roundNumber <= totalRounds ? DrawGamePhase.Drawing : null,
             _ => throw new ArgumentException("Invalid phase")
         };
 
