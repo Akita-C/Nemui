@@ -23,21 +23,21 @@ public class SignalRDrawGameNotificationService : IDrawGameNotificationService
 
     public async Task NotifyRoundStartedAsync(RoundStartedEvent roundStartEvent)
     {
-        var roomKey = gameService.GetRoomKey(roundStartEvent.RoomId);
+        var roomKey = gameService.GetRoomMetadataKey(roundStartEvent.RoomId);
         await hubContext.Clients.Group(roomKey).RoundStarted(roundStartEvent);
         logger.LogDebug("Round started notification sent to room {RoomId}", roundStartEvent.RoomId);
     }
 
     public async Task NotifyRoundEndedAsync(EndedGameEvent endedGameEvent)
     {
-        var roomKey = gameService.GetRoomKey(endedGameEvent.RoomId);
+        var roomKey = gameService.GetRoomMetadataKey(endedGameEvent.RoomId);
         await hubContext.Clients.Group(roomKey).EndedGame(endedGameEvent);
         logger.LogDebug("Round ended notification sent to room {RoomId}", endedGameEvent.RoomId);
     }
 
     public async Task NotifyPhaseChangedAsync(PhaseChangedEvent phaseEvent)
     {
-        var roomKey = gameService.GetRoomKey(phaseEvent.RoomId);
+        var roomKey = gameService.GetRoomMetadataKey(phaseEvent.RoomId);
         await hubContext.Clients.Group(roomKey).PhaseChanged(phaseEvent);
         logger.LogDebug("Phase changed to {Phase} notification sent to room {RoomId}", phaseEvent.Phase, phaseEvent.RoomId);
     }

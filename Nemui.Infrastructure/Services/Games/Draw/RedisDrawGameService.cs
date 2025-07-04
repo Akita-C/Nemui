@@ -143,14 +143,14 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         return new DrawGameSession
         {
             RoomId = roomId,
-            Phase = Enum.Parse<DrawGamePhase>(gameDict.GetValueOrDefault(GameSessionHaskKey.Phase, "waiting")),
-            CurrentRound = int.Parse(gameDict.GetValueOrDefault(GameSessionHaskKey.CurrentRound, "0")),
-            TotalRounds = int.Parse(gameDict.GetValueOrDefault(GameSessionHaskKey.TotalRounds, "0")),
-            CurrentTurnIndex = int.Parse(gameDict.GetValueOrDefault(GameSessionHaskKey.CurrentTurnIndex, "0")),
-            CurrentDrawerId = gameDict.GetValueOrDefault(GameSessionHaskKey.CurrentDrawerId),
-            CurrentWord = gameDict.GetValueOrDefault(GameSessionHaskKey.CurrentWord),
-            RoundStartTime = DateTime.TryParse(gameDict.GetValueOrDefault(GameSessionHaskKey.RoundStartTime), out var roundStartTime) ? roundStartTime : DateTime.Now,
-            SessionStartTime = DateTime.TryParse(gameDict.GetValueOrDefault(GameSessionHaskKey.SessionStartTime), out var sessionStartTime) ? sessionStartTime : DateTime.Now,
+            Phase = Enum.Parse<DrawGamePhase>(gameDict.GetValueOrDefault(GameSessionHashKey.Phase, "waiting")),
+            CurrentRound = int.Parse(gameDict.GetValueOrDefault(GameSessionHashKey.CurrentRound, "0")),
+            TotalRounds = int.Parse(gameDict.GetValueOrDefault(GameSessionHashKey.TotalRounds, "0")),
+            CurrentTurnIndex = int.Parse(gameDict.GetValueOrDefault(GameSessionHashKey.CurrentTurnIndex, "0")),
+            CurrentDrawerId = gameDict.GetValueOrDefault(GameSessionHashKey.CurrentDrawerId),
+            CurrentWord = gameDict.GetValueOrDefault(GameSessionHashKey.CurrentWord),
+            RoundStartTime = DateTime.TryParse(gameDict.GetValueOrDefault(GameSessionHashKey.RoundStartTime), out var roundStartTime) ? roundStartTime : DateTime.Now,
+            SessionStartTime = DateTime.TryParse(gameDict.GetValueOrDefault(GameSessionHashKey.SessionStartTime), out var sessionStartTime) ? sessionStartTime : DateTime.Now,
             PlayerTurnOrder = [.. turnOrder.Select(order => order.ToString())]
         };
     }
@@ -164,11 +164,11 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
 
         var gameFields = new HashEntry[]
         {
-            new (GameSessionHaskKey.Phase, DrawGamePhase.Waiting.ToString()),
-            new (GameSessionHaskKey.CurrentRound, "0"),
-            new (GameSessionHaskKey.TotalRounds, (room.Config.MaxRoundPerPlayers * playerIds.Count).ToString()),
-            new (GameSessionHaskKey.CurrentTurnIndex, "0"),
-            new (GameSessionHaskKey.SessionStartTime, DateTime.UtcNow.ToString("O")),
+            new (GameSessionHashKey.Phase, DrawGamePhase.Waiting.ToString()),
+            new (GameSessionHashKey.CurrentRound, "0"),
+            new (GameSessionHashKey.TotalRounds, (room.Config.MaxRoundPerPlayers * playerIds.Count).ToString()),
+            new (GameSessionHashKey.CurrentTurnIndex, "0"),
+            new (GameSessionHashKey.SessionStartTime, DateTime.UtcNow.ToString("O")),
         };
 
         var task = new List<Task>
@@ -186,13 +186,13 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         return await transaction.ExecuteAsync();
     }
 
-    public async Task<string?> StartNextRoundAsync(Guid roomId)
+    public async Task<(string?, string?, int)> StartNextRoundAsync(Guid roomId)
     {
         var session = await GetGameSessionAsync(roomId);
-        if (session == null) return null;
+        if (session == null) return (null, null, 0);
 
         var word = await ConsumeRandomWordAsync(roomId);
-        if (word == null) return null;
+        if (word == null) return (null, null, 0);
 
         var newRound = session.CurrentRound + 1;
         var newTurnIndex = newRound % session.PlayerTurnOrder.Count;
@@ -201,52 +201,50 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         var transaction = database.CreateTransaction();
         var updateFields = new HashEntry[]
         {
-            new (GameSessionHaskKey.Phase, DrawGamePhase.Drawing.ToString()),
-            new (GameSessionHaskKey.CurrentRound, newRound.ToString()),
-            new (GameSessionHaskKey.CurrentTurnIndex, newTurnIndex.ToString()),
-            new (GameSessionHaskKey.CurrentDrawerId, currentDrawerId),
-            new (GameSessionHaskKey.CurrentWord, word),
-            new (GameSessionHaskKey.RoundStartTime, DateTime.UtcNow.ToString("O")),
+            new (GameSessionHashKey.Phase, DrawGamePhase.Drawing.ToString()),
+            new (GameSessionHashKey.CurrentRound, newRound.ToString()),
+            new (GameSessionHashKey.CurrentTurnIndex, newTurnIndex.ToString()),
+            new (GameSessionHashKey.CurrentDrawerId, currentDrawerId),
+            new (GameSessionHashKey.CurrentWord, word),
+            new (GameSessionHashKey.RoundStartTime, DateTime.UtcNow.ToString("O")),
         };
 
         await transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields);
         await transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime);
 
         if (await transaction.ExecuteAsync())
-            return word;
+            return (currentDrawerId, word, newRound);
 
-        return null;
+        return (null, null, 0);
     }
 
-    public async Task<bool> UpdateGameSessionAsync(Guid roomId, DrawGameSession session)
+    public async Task<bool> UpdateGamePhaseAsync(Guid roomId, DrawGamePhase phase)
     {
         var transaction = database.CreateTransaction();
-
         var updateFields = new HashEntry[]
         {
-            new(GameSessionHaskKey.Phase, session.Phase.ToString()),
-            new(GameSessionHaskKey.CurrentRound, session.CurrentRound.ToString()),
-            new(GameSessionHaskKey.CurrentTurnIndex, session.CurrentTurnIndex.ToString()),
-            new(GameSessionHaskKey.CurrentDrawerId, session.CurrentDrawerId ?? ""),
-            new(GameSessionHaskKey.CurrentWord, session.CurrentWord ?? ""),
-            new(GameSessionHaskKey.RoundStartTime, session.RoundStartTime.ToString("O")),
-            new(GameSessionHaskKey.SessionStartTime, session.SessionStartTime.ToString("O"))
+            new(GameSessionHashKey.Phase, phase.ToString()),
         };
-
-        var task = new List<Task>
-        {
-            transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields),
-            transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime),
-        };
-
-        await Task.WhenAll(task);
+        await transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields);
         return await transaction.ExecuteAsync();
     }
 
     public async Task<string?> GetCurrentDrawerAsync(Guid roomId)
     {
-        var currentDrawer = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHaskKey.CurrentDrawerId);
+        var currentDrawer = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.CurrentDrawerId);
         return currentDrawer.HasValue ? currentDrawer.ToString() : null;
+    }
+
+    public async Task<int?> GetCurrentRoundAsync(Guid roomId)
+    {
+        var currentRound = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.CurrentRound);
+        return currentRound.HasValue ? (int)currentRound : null;
+    }
+
+    public async Task<DrawGamePhase> GetCurrentPhaseAsync(Guid roomId)
+    {
+        var phase = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.Phase);
+        return Enum.Parse<DrawGamePhase>(phase.HasValue ? phase.ToString() : "waiting");
     }
 
     // ============================= PLAYER SCORES METHODS =============================
@@ -288,7 +286,7 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
     public string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
 }
 
-public static class GameSessionHaskKey
+public static class GameSessionHashKey
 {
     public const string Phase = "phase";
     public const string CurrentRound = "current_round";

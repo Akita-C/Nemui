@@ -1,4 +1,5 @@
 ﻿using Nemui.Shared.DTOs.Games.Draw;
+using Nemui.Shared.Enums;
 
 namespace Nemui.Application.Services.Games.Draw;
 
@@ -18,9 +19,12 @@ public interface IDrawGameService
     // Game session methods
     Task<DrawGameSession?> GetGameSessionAsync(Guid roomId);
     Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds);
-    Task<string?> StartNextRoundAsync(Guid roomId);
-    Task<bool> UpdateGameSessionAsync(Guid roomId, DrawGameSession session);
+    // Returns the current drawer and the word for the round
+    Task<(string?, string?, int)> StartNextRoundAsync(Guid roomId);
+    Task<bool> UpdateGamePhaseAsync(Guid roomId, DrawGamePhase phase);
     Task<string?> GetCurrentDrawerAsync(Guid roomId);
+    Task<int?> GetCurrentRoundAsync(Guid roomId);
+    Task<DrawGamePhase> GetCurrentPhaseAsync(Guid roomId);
 
     // Word pool methods
     Task InitializeWordPoolAsync(Guid roomId, int wordCount);

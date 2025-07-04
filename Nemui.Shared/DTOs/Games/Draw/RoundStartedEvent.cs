@@ -15,4 +15,8 @@ public record RoundStartedEvent
     public int DurationSeconds { get; set; }
     [Key("startTime")]
     public DateTimeOffset StartTime { get; set; }
+    [Key("currentDrawerId")]
+    public string? CurrentDrawerId { get; set; }
+    [Key("currentWord")]
+    public string? CurrentWord { get; set; }
 }
