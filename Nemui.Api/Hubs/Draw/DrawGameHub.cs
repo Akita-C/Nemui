@@ -112,7 +112,8 @@ public class DrawGameHub(
 
         var totalRounds = room.Config.MaxRoundPerPlayers * (await gameService.GetPlayerCountAsync(roomId));
         var playerIds = (await gameService.GetAllPlayersAsync(currentUserService!.UserId, roomId)).Select(player => player!.PlayerId).ToList();
-        await gameService.InitializeGameSessionAsync(roomId, playerIds);
+        await gameService.InitializeWordPoolAsync(roomId, (int)totalRounds);
+        await gameService.InitializeGameSessionAsync(roomId, playerIds, (int)totalRounds);
         await roundTimerService.StartRoundAsync(roomId, (int)totalRounds, room.Config);
     }
 }

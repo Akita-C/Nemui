@@ -18,7 +18,7 @@ public interface IDrawGameService
 
     // Game session methods
     Task<DrawGameSession?> GetGameSessionAsync(Guid roomId);
-    Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds);
+    Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds, int totalRounds);
     // Returns the current drawer and the word for the round
     Task<(string?, string?, int)> StartNextRoundAsync(Guid roomId);
     Task<bool> UpdateGamePhaseAsync(Guid roomId, DrawGamePhase phase);

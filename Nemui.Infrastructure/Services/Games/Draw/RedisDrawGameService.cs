@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Games.Draw;
 using Nemui.Shared.Enums;
@@ -7,7 +8,7 @@ using StackExchange.Redis;
 
 namespace Nemui.Infrastructure.Services.Games.Draw;
 
-public class RedisDrawGameService(IDatabase database) : IDrawGameService
+public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameService> logger) : IDrawGameService
 {
     private readonly TimeSpan cacheExpirationTime = TimeSpan.FromHours(1);
 
@@ -30,8 +31,6 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         };
 
         await database.StringSetAsync(GetRoomMetadataKey(room.RoomId), JsonSerializer.Serialize(room), cacheExpirationTime);
-        var wordCount = (int)(createRoom.Config.MaxRoundPerPlayers * await GetPlayerCountAsync(room.RoomId));
-        await InitializeWordPoolAsync(room.RoomId, wordCount);
         return room.RoomId;
     }
 
@@ -155,7 +154,7 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         };
     }
 
-    public async Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds)
+    public async Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds, int totalRounds)
     {
         var room = await GetRoomAsync(roomId);
         if (room == null) return false;
@@ -166,7 +165,7 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         {
             new (GameSessionHashKey.Phase, DrawGamePhase.Waiting.ToString()),
             new (GameSessionHashKey.CurrentRound, "0"),
-            new (GameSessionHashKey.TotalRounds, (room.Config.MaxRoundPerPlayers * playerIds.Count).ToString()),
+            new (GameSessionHashKey.TotalRounds, totalRounds.ToString()),
             new (GameSessionHashKey.CurrentTurnIndex, "0"),
             new (GameSessionHashKey.SessionStartTime, DateTime.UtcNow.ToString("O")),
         };
@@ -182,8 +181,10 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
         task.AddRange(playerIds.Select(playerId => transaction.HashSetAsync(GetRoomScoresKey(roomId), playerId, 0)));
         task.Add(transaction.KeyExpireAsync(GetRoomScoresKey(roomId), cacheExpirationTime));
 
+        var result = await transaction.ExecuteAsync();
+        if (!result) return false;
         await Task.WhenAll(task);
-        return await transaction.ExecuteAsync();
+        return true;
     }
 
     public async Task<(string?, string?, int)> StartNextRoundAsync(Guid roomId)
@@ -209,24 +210,34 @@ public class RedisDrawGameService(IDatabase database) : IDrawGameService
             new (GameSessionHashKey.RoundStartTime, DateTime.UtcNow.ToString("O")),
         };
 
-        await transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields);
-        await transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime);
+        var tasks = new List<Task>
+        {
+            transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields),
+            transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime),
+        };
 
-        if (await transaction.ExecuteAsync())
-            return (currentDrawerId, word, newRound);
-
-        return (null, null, 0);
+        var result = await transaction.ExecuteAsync();
+        if (!result) return (null, null, 0);
+        await Task.WhenAll(tasks);
+        return (currentDrawerId, word, newRound);
     }
 
     public async Task<bool> UpdateGamePhaseAsync(Guid roomId, DrawGamePhase phase)
     {
-        var transaction = database.CreateTransaction();
-        var updateFields = new HashEntry[]
+        try
         {
-            new(GameSessionHashKey.Phase, phase.ToString()),
-        };
-        await transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields);
-        return await transaction.ExecuteAsync();
+            var updateFields = new HashEntry[]
+            {
+                new(GameSessionHashKey.Phase, phase.ToString()),
+            };
+            await database.HashSetAsync(GetRoomGameKey(roomId), updateFields);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating game phase for room {RoomId}", roomId);
+            return false;
+        }
     }
 
     public async Task<string?> GetCurrentDrawerAsync(Guid roomId)

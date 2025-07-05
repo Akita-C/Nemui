@@ -12,11 +12,11 @@ public record DrawRoomConfig
     public int MaxRoundPerPlayers { get; set; }
 
     [Key("drawingDurationSeconds")]
-    public int DrawingDurationSeconds { get; set; } = 80;
+    public int DrawingDurationSeconds { get; set; } = 10;
 
     [Key("guessingDurationSeconds")]
-    public int GuessingDurationSeconds { get; set; } = 80;
+    public int GuessingDurationSeconds { get; set; } = 10;
 
     [Key("revealDurationSeconds")]
-    public int RevealDurationSeconds { get; set; } = 80;
+    public int RevealDurationSeconds { get; set; } = 10;
 };

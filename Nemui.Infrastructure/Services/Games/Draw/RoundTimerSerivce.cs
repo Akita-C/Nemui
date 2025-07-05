@@ -127,7 +127,9 @@ public class RoundTimerService(
         private readonly Func<PhaseChangedEvent, Task> onPhaseElapsed;
         private readonly IDrawGameService gameService;
 
-        private Timer? currentTimer;
+
+        private PeriodicTimer? phaseTimer;
+        private CancellationTokenSource? phaseCts;
         private DateTimeOffset phaseStartTime;
 
 
@@ -157,14 +159,32 @@ public class RoundTimerService(
 
         public void Start()
         {
-            StartPhase(DrawGamePhase.Drawing);
+            _ = StartPhaseAsync(DrawGamePhase.Drawing);
         }
 
-        private void StartPhase(DrawGamePhase phase)
+        private async Task StartPhaseAsync(DrawGamePhase phase)
         {
+            phaseCts?.Cancel();
+            phaseCts?.Dispose();
+            phaseCts = new CancellationTokenSource();
+
             phaseStartTime = DateTimeOffset.UtcNow;
             var duration = GetPhaseDuration(phase);
-            currentTimer = new Timer(OnPhaseCallback, phase, TimeSpan.FromSeconds(duration), Timeout.InfiniteTimeSpan);
+
+            phaseTimer?.Dispose();
+            phaseTimer = new PeriodicTimer(TimeSpan.FromSeconds(duration));
+
+            try
+            {
+                while (await phaseTimer.WaitForNextTickAsync(phaseCts.Token))
+                {
+                    await HandlePhaseAsync(phase);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private int GetPhaseDuration(DrawGamePhase phase) => phase switch
@@ -175,43 +195,33 @@ public class RoundTimerService(
             _ => throw new ArgumentException("Invalid phase")
         };
 
-        private async void OnPhaseCallback(object? state)
+        private async Task HandlePhaseAsync(DrawGamePhase phase)
         {
-            try
+            var roundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0;
+            var nextPhase = GetNextPhase(phase, roundNumber);
+
+            if (!nextPhase.HasValue)
             {
-                if (state is not DrawGamePhase completedPhase) return;
-
-                var roundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0;
-                var nextPhase = GetNextPhase(completedPhase, roundNumber);
-
-                // This means the game is over
-                if (!nextPhase.HasValue)
-                {
-                    await onEndedGame(roomId);
-                    return;
-                }
-
-                var basePhaseEvent = new PhaseChangedEvent
-                {
-                    RoomId = roomId,
-                    Phase = nextPhase.Value,
-                    DurationSeconds = GetPhaseDuration(nextPhase.Value),
-                    StartTime = DateTimeOffset.UtcNow,
-                };
-
-                var phaseEvent = nextPhase switch
-                {
-                    DrawGamePhase.Reveal => await CreateNextPhaseChangedEvent(basePhaseEvent),
-                    _ => await CreatePhaseChangedEvent(basePhaseEvent, roundNumber)
-                };
-
-                await onPhaseElapsed(phaseEvent);
-                StartPhase(nextPhase.Value);
+                await onEndedGame(roomId);
+                return;
             }
-            catch (Exception ex)
+
+            var basePhaseEvent = new PhaseChangedEvent
             {
-                Console.WriteLine(ex.Message);
-            }
+                RoomId = roomId,
+                Phase = nextPhase.Value,
+                DurationSeconds = GetPhaseDuration(nextPhase.Value),
+                StartTime = DateTimeOffset.UtcNow,
+            };
+
+            var phaseChangedEvent = nextPhase.Value switch
+            {
+                DrawGamePhase.Drawing => await CreateNextPhaseChangedEvent(basePhaseEvent),
+                _ => await CreatePhaseChangedEvent(basePhaseEvent, roundNumber)
+            };
+
+            await onPhaseElapsed(phaseChangedEvent);
+            await StartPhaseAsync(nextPhase.Value);
         }
 
         private async Task<PhaseChangedEvent> CreateNextPhaseChangedEvent(PhaseChangedEvent basePhaseEvent)
@@ -244,13 +254,15 @@ public class RoundTimerService(
         {
             DrawGamePhase.Drawing => DrawGamePhase.Guessing,
             DrawGamePhase.Guessing => DrawGamePhase.Reveal,
-            DrawGamePhase.Reveal => roundNumber <= totalRounds ? DrawGamePhase.Drawing : null,
+            DrawGamePhase.Reveal => roundNumber < totalRounds ? DrawGamePhase.Drawing : null,
             _ => throw new ArgumentException("Invalid phase")
         };
 
         public void Dispose()
         {
-            currentTimer?.Dispose();
+            phaseCts?.Cancel();
+            phaseCts?.Dispose();
+            phaseTimer?.Dispose();
         }
     }
 }
