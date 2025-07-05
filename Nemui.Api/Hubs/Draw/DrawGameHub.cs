@@ -114,6 +114,40 @@ public class DrawGameHub(
         var playerIds = (await gameService.GetAllPlayersAsync(currentUserService!.UserId, roomId)).Select(player => player!.PlayerId).ToList();
         await gameService.InitializeWordPoolAsync(roomId, (int)totalRounds);
         await gameService.InitializeGameSessionAsync(roomId, playerIds, (int)totalRounds);
+        await gameService.InitializePlayerHeartsAsync(roomId, playerIds);
         await roundTimerService.StartRoundAsync(roomId, (int)totalRounds, room.Config);
+    }
+
+    public async Task SendGuessMessage(Guid roomId, string message)
+    {
+        var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
+        if (!isPlayerInRoom)
+        {
+            throw new HubException("User is not in room.");
+        }
+        var gamePhase = await gameService.GetCurrentPhaseAsync(roomId);
+        var playerHearts = await gameService.GetPlayerHeartsAsync(roomId, currentUserService.UserId!);
+        if (gamePhase != DrawGamePhase.Guessing && gamePhase != DrawGamePhase.Drawing || playerHearts <= 0)
+        {
+            if (gamePhase != DrawGamePhase.Guessing && gamePhase != DrawGamePhase.Drawing)
+            {
+                throw new HubException($"Invalid guess message attempt for room {roomId} by user {currentUserService.UserId} because game phase is not guessing or drawing");
+            }
+            if (playerHearts <= 0)
+            {
+                throw new HubException("User has no hearts left.");
+            }
+        }
+
+        var (isCorrect, newScore) = await gameService.GuessWordAsync(roomId, currentUserService.UserId!, message);
+        if (isCorrect)
+            await Clients.Group(gameService.GetRoomMetadataKey(roomId)).GuessMessageCorrectReceived(currentUserService.UserId!, newScore);
+        else
+        {
+            await Task.WhenAll([
+                Clients.Group(gameService.GetRoomMetadataKey(roomId)).GuessMessageWrongReceived(currentUserService.UserId!, message),
+                gameService.DecrementPlayerHeartsAsync(roomId, currentUserService.UserId!)
+            ]);
+        }
     }
 }

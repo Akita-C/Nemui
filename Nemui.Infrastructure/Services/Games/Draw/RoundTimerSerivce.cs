@@ -216,7 +216,7 @@ public class RoundTimerService(
 
             var phaseChangedEvent = nextPhase.Value switch
             {
-                DrawGamePhase.Drawing => await CreateNextPhaseChangedEvent(basePhaseEvent),
+                DrawGamePhase.Drawing => await CreateAndHandleNextRoundChangedEvent(basePhaseEvent),
                 _ => await CreatePhaseChangedEvent(basePhaseEvent, roundNumber)
             };
 
@@ -224,13 +224,14 @@ public class RoundTimerService(
             await StartPhaseAsync(nextPhase.Value);
         }
 
-        private async Task<PhaseChangedEvent> CreateNextPhaseChangedEvent(PhaseChangedEvent basePhaseEvent)
+        private async Task<PhaseChangedEvent> CreateAndHandleNextRoundChangedEvent(PhaseChangedEvent basePhaseEvent)
         {
             var (currentDrawerId, word, nextRoundNumber) = await gameService.StartNextRoundAsync(roomId);
             if (currentDrawerId == null || word == null)
             {
                 Console.WriteLine("There must be something wrong for it to reach this case");
             }
+            await gameService.ResetAllPlayerHeartsAsync(roomId);
 
             return basePhaseEvent with
             {

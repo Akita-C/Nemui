@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Nemui.Application.Services.Games.Draw;
+using Nemui.Shared.Constants;
 using Nemui.Shared.DTOs.Games.Draw;
 using Nemui.Shared.Enums;
 using Nemui.Shared.Helpers;
@@ -246,6 +247,12 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         return currentDrawer.HasValue ? currentDrawer.ToString() : null;
     }
 
+    public async Task<string?> GetCurrentWordAsync(Guid roomId)
+    {
+        var currentWord = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.CurrentWord);
+        return currentWord.HasValue ? currentWord.ToString() : null;
+    }
+
     public async Task<int?> GetCurrentRoundAsync(Guid roomId)
     {
         var currentRound = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.CurrentRound);
@@ -287,6 +294,62 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
 
     public async Task<bool> ResetPlayerScoresAsync(Guid roomId) => await database.KeyDeleteAsync(GetRoomScoresKey(roomId));
 
+    // ============================= PLAYER HEARTS METHODS =============================
+    public async Task InitializePlayerHeartsAsync(Guid roomId, List<string> playerIds)
+    {
+        var entries = playerIds.Select(playerId => new HashEntry(playerId, DrawConstants.MaxHearts)).ToArray();
+        await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), entries);
+    }
+
+    public async Task<int> GetPlayerHeartsAsync(Guid roomId, string playerId)
+    {
+        var hearts = await database.HashGetAsync(GetRoomPlayerHeartsKey(roomId), playerId);
+        return hearts.HasValue ? (int)hearts : 0;
+    }
+
+    public async Task<bool> DecrementPlayerHeartsAsync(Guid roomId, string playerId)
+    {
+        var result = await database.HashDecrementAsync(GetRoomPlayerHeartsKey(roomId), playerId, 1);
+        return result > 0;
+    }
+
+    public async Task<bool> SetPlayerHeartsAsync(Guid roomId, string playerId, int hearts)
+    {
+        var result = await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), playerId, hearts);
+        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), cacheExpirationTime);
+        return result;
+    }
+
+    public async Task<bool> ResetAllPlayerHeartsAsync(Guid roomId)
+    {
+        try
+        {
+            var players = await database.HashGetAllAsync(GetRoomPlayerHeartsKey(roomId));
+            var entries = players.Select(player => new HashEntry(player.Name, DrawConstants.MaxHearts)).ToArray();
+            await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), entries);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error resetting all player hearts for room {RoomId}", roomId);
+            return false;
+        }
+    }
+
+    // ============================= PLAYER GUESS METHODS =============================
+
+    public async Task<(bool, int)> GuessWordAsync(Guid roomId, string playerId, string message)
+    {
+        var currentWord = await GetCurrentWordAsync(roomId);
+        if (currentWord == null) return (false, 0);
+
+        var isCorrect = currentWord.Equals(message, StringComparison.OrdinalIgnoreCase);
+        if (!isCorrect) return (false, 0);
+        var newScore = await IncrementPlayerScoreAsync(roomId, playerId, 1);
+        await SetPlayerHeartsAsync(roomId, playerId, 0);
+        return (true, (int)newScore);
+    }
+
     // ============================= KEY GENERATION METHODS =============================
 
     public string GetRoomMetadataKey(Guid roomId) => $"room:{roomId}:metadata";
@@ -294,6 +357,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     public string GetRoomGameKey(Guid roomId) => $"room:{roomId}:game";
     public string GetRoomTurnOrderKey(Guid roomId) => $"room:{roomId}:turn_order";
     public string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
+    public string GetRoomPlayerHeartsKey(Guid roomId) => $"room:{roomId}:hearts";
     public string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
 }
 
