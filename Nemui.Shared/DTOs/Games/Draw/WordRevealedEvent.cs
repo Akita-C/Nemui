@@ -10,10 +10,4 @@ public record WordRevealedEvent
 
     [Key("revealedWord")]
     public string RevealedWord { get; set; } = string.Empty;
-
-    [Key("revealPercentage")]
-    public float RevealPercentage { get; set; }
-
-    [Key("timestamp")]
-    public DateTimeOffset Timestamp { get; set; }
 };

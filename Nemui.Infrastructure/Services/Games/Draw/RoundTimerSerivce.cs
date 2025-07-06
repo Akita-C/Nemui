@@ -256,8 +256,6 @@ public class RoundTimerService(
                 {
                     RoomId = roomId,
                     RevealedWord = revealedWord,
-                    RevealPercentage = revealPercentage,
-                    Timestamp = DateTimeOffset.UtcNow
                 };
 
                 await onWordRevealed(wordRevealedEvent);
