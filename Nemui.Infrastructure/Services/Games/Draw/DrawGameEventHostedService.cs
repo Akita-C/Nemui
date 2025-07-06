@@ -18,6 +18,7 @@ public class DrawGameEventHostedService(
         roundTimerService.OnRoundStarted += drawGameNotificationService.NotifyRoundStartedAsync;
         roundTimerService.OnPhaseChanged += drawGameNotificationService.NotifyPhaseChangedAsync;
         roundTimerService.OnEndedGame += drawGameNotificationService.NotifyRoundEndedAsync;
+        roundTimerService.OnWordRevealed += drawGameNotificationService.NotifyWordRevealedAsync;
 
         logger.LogInformation("DrawGameEventHostedService started");
         await Task.CompletedTask;
@@ -30,6 +31,7 @@ public class DrawGameEventHostedService(
         roundTimerService.OnRoundStarted -= drawGameNotificationService.NotifyRoundStartedAsync;
         roundTimerService.OnPhaseChanged -= drawGameNotificationService.NotifyPhaseChangedAsync;
         roundTimerService.OnEndedGame -= drawGameNotificationService.NotifyRoundEndedAsync;
+        roundTimerService.OnWordRevealed -= drawGameNotificationService.NotifyWordRevealedAsync;
 
         logger.LogInformation("DrawGameEventHostedService stopped");
         await Task.CompletedTask;

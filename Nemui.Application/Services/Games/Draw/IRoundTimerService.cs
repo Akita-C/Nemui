@@ -1,5 +1,4 @@
 using Nemui.Shared.DTOs.Games.Draw;
-using Nemui.Shared.Enums;
 
 namespace Nemui.Application.Services.Games.Draw;
 
@@ -13,4 +12,5 @@ public interface IRoundTimerService : IDisposable
     event Func<RoundStartedEvent, Task>? OnRoundStarted;
     event Func<EndedGameEvent, Task>? OnEndedGame;
     event Func<PhaseChangedEvent, Task>? OnPhaseChanged;
+    event Func<WordRevealedEvent, Task>? OnWordRevealed;
 }

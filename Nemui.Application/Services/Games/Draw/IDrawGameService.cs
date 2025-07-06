@@ -17,6 +17,7 @@ public interface IDrawGameService
     Task<long> GetPlayerCountAsync(Guid roomId);
     Task<List<DrawPlayer?>> GetAllPlayersAsync(string playerId, Guid roomId);
     Task<(bool, DrawPlayer?)> IsPlayerInRoomAsync(string playerId, Guid roomId);
+    Task<DrawPlayer?> GetPlayerAsync(string playerId, Guid roomId);
 
     // Game session methods
     Task<DrawGameSession?> GetGameSessionAsync(Guid roomId);

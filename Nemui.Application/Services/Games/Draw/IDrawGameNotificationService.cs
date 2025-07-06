@@ -7,4 +7,5 @@ public interface IDrawGameNotificationService
     Task NotifyRoundStartedAsync(RoundStartedEvent roundEvent);
     Task NotifyRoundEndedAsync(EndedGameEvent roundEvent);
     Task NotifyPhaseChangedAsync(PhaseChangedEvent phaseEvent);
+    Task NotifyWordRevealedAsync(WordRevealedEvent wordRevealedEvent);
 }

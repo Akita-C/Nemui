@@ -41,4 +41,23 @@ public class SignalRDrawGameNotificationService : IDrawGameNotificationService
         await hubContext.Clients.Group(roomKey).PhaseChanged(phaseEvent);
         logger.LogDebug("Phase changed to {Phase} notification sent to room {RoomId}", phaseEvent.Phase, phaseEvent.RoomId);
     }
+
+    public async Task NotifyWordRevealedAsync(WordRevealedEvent wordRevealedEvent)
+    {
+        var roomKey = gameService.GetRoomMetadataKey(wordRevealedEvent.RoomId);
+        var currentDrawer = await gameService.GetCurrentDrawerAsync(wordRevealedEvent.RoomId);
+        if (currentDrawer == null)
+        {
+            logger.LogError("Current drawer not found for room {RoomId}", wordRevealedEvent.RoomId);
+            return;
+        }
+        var player = await gameService.GetPlayerAsync(currentDrawer!, wordRevealedEvent.RoomId);
+        if (player == null)
+        {
+            logger.LogError("Cannot find player for room {RoomId} and with id {PlayerId}", wordRevealedEvent.RoomId, currentDrawer);
+            return;
+        }
+        await hubContext.Clients.GroupExcept(roomKey, player.ConnectionId!).WordRevealed(wordRevealedEvent);
+        logger.LogDebug("Word revealed notification sent to room {RoomId} to all players except {PlayerId}", wordRevealedEvent.RoomId, player.PlayerId);
+    }
 }

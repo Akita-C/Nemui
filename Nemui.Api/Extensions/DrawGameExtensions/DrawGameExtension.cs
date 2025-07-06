@@ -12,6 +12,7 @@ public static class DrawGameExtension
         services.AddSingleton<IDrawGameService, RedisDrawGameService>();
         services.AddSingleton<IRoundTimerService, RoundTimerService>();
         services.AddSingleton<IDrawGameNotificationService, SignalRDrawGameNotificationService>();
+        services.AddSingleton<IWordRevealService, WordRevealService>();
         services.AddHostedService<DrawGameEventHostedService>();
 
         return services;

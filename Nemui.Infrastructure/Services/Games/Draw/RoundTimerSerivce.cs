@@ -8,6 +8,7 @@ namespace Nemui.Infrastructure.Services.Games.Draw;
 
 public class RoundTimerService(
     IDrawGameService gameService,
+    IWordRevealService wordRevealService,
     ILogger<RoundTimerService> logger
 ) : IRoundTimerService
 {
@@ -17,6 +18,7 @@ public class RoundTimerService(
     public event Func<RoundStartedEvent, Task>? OnRoundStarted;
     public event Func<EndedGameEvent, Task>? OnEndedGame;
     public event Func<PhaseChangedEvent, Task>? OnPhaseChanged;
+    public event Func<WordRevealedEvent, Task>? OnWordRevealed;
 
     public async Task StartRoundAsync(Guid roomId, int totalRounds, DrawRoomConfig config)
     {
@@ -31,7 +33,9 @@ public class RoundTimerService(
             config,
             OnTimerElapsed,
             OnPhaseElapsed,
-            gameService
+            OnWordRevealedElapsed,
+            gameService,
+            wordRevealService
         );
 
         if (activeRounds.TryAdd(roomId, roundTimer))
@@ -105,6 +109,11 @@ public class RoundTimerService(
         if (OnPhaseChanged != null) await OnPhaseChanged(phaseEvent);
     }
 
+    private async Task OnWordRevealedElapsed(WordRevealedEvent wordRevealedEvent)
+    {
+        if (OnWordRevealed != null) await OnWordRevealed(wordRevealedEvent);
+    }
+
     public void Dispose()
     {
         if (isDisposed) return;
@@ -118,19 +127,35 @@ public class RoundTimerService(
         isDisposed = true;
     }
 
-    private class RoundTimer : IDisposable
+    private class RoundTimer(
+        Guid roomId,
+        int totalRounds,
+        DrawRoomConfig config,
+        Func<Guid, Task> onEndedGame,
+        Func<PhaseChangedEvent, Task> onPhaseElapsed,
+        Func<WordRevealedEvent, Task> onWordRevealed,
+        IDrawGameService gameService,
+        IWordRevealService wordRevealService
+        ) : IDisposable
     {
-        private readonly Guid roomId;
-        private readonly int totalRounds;
-        private readonly DrawRoomConfig config;
-        private readonly Func<Guid, Task> onEndedGame;
-        private readonly Func<PhaseChangedEvent, Task> onPhaseElapsed;
-        private readonly IDrawGameService gameService;
+        private readonly Guid roomId = roomId;
+        private readonly int totalRounds = totalRounds;
+        private readonly DrawRoomConfig config = config;
+        private readonly Func<Guid, Task> onEndedGame = onEndedGame;
+        private readonly Func<PhaseChangedEvent, Task> onPhaseElapsed = onPhaseElapsed;
+        private readonly Func<WordRevealedEvent, Task> onWordRevealed = onWordRevealed;
+        private readonly IDrawGameService gameService = gameService;
+        private readonly IWordRevealService wordRevealService = wordRevealService;
 
 
+        // ============== Phase timers ==============
         private PeriodicTimer? phaseTimer;
         private CancellationTokenSource? phaseCts;
         private DateTimeOffset phaseStartTime;
+
+        // ============== Word reveal timer ==============
+        private PeriodicTimer? wordRevealTimer;
+        private CancellationTokenSource? wordRevealCts;
 
 
         public async Task<int> GetRemainingSecondsAsync()
@@ -140,23 +165,6 @@ public class RoundTimerService(
             return Math.Max(0, phaseDuration - elapsed);
         }
 
-        public RoundTimer(
-            Guid roomId,
-            int totalRounds,
-            DrawRoomConfig config,
-            Func<Guid, Task> onEndedGame,
-            Func<PhaseChangedEvent, Task> onPhaseElapsed,
-            IDrawGameService gameService
-        )
-        {
-            this.roomId = roomId;
-            this.totalRounds = totalRounds;
-            this.config = config;
-            this.onEndedGame = onEndedGame;
-            this.onPhaseElapsed = onPhaseElapsed;
-            this.gameService = gameService;
-        }
-
         public void Start()
         {
             _ = StartPhaseAsync(DrawGamePhase.Drawing);
@@ -164,15 +172,19 @@ public class RoundTimerService(
 
         private async Task StartPhaseAsync(DrawGamePhase phase)
         {
+            // Clean up previous phase timers
             phaseCts?.Cancel();
             phaseCts?.Dispose();
+            phaseTimer?.Dispose();
             phaseCts = new CancellationTokenSource();
 
             phaseStartTime = DateTimeOffset.UtcNow;
             var duration = GetPhaseDuration(phase);
 
-            phaseTimer?.Dispose();
             phaseTimer = new PeriodicTimer(TimeSpan.FromSeconds(duration));
+
+            if (phase == DrawGamePhase.Drawing && config.EnableWordReveal)
+                StartWordRevealTimer();
 
             try
             {
@@ -194,6 +206,67 @@ public class RoundTimerService(
             DrawGamePhase.Reveal => config.RevealDurationSeconds,
             _ => throw new ArgumentException("Invalid phase")
         };
+
+        private void StartWordRevealTimer()
+        {
+            wordRevealCts?.Cancel();
+            wordRevealCts?.Dispose();
+            wordRevealTimer?.Dispose();
+            wordRevealCts = new CancellationTokenSource();
+
+            wordRevealTimer = new PeriodicTimer(TimeSpan.FromSeconds(config!.WordRevealIntervalSeconds));
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (await wordRevealTimer.WaitForNextTickAsync(wordRevealCts.Token))
+                    {
+                        await ProcessWordRevealAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error in word reveal timer: " + ex.Message);
+                }
+            });
+        }
+
+        private async Task ProcessWordRevealAsync()
+        {
+            try
+            {
+                var currentWord = await gameService.GetCurrentWordAsync(roomId);
+                if (currentWord == null)
+                {
+                    Console.WriteLine("ProcessWordRevealAsync | There must be something wrong for it to reach this case ");
+                    return;
+                }
+
+                var elapsedSeconds = (int)(DateTimeOffset.UtcNow - phaseStartTime).TotalSeconds;
+                var totalDrawingSeconds = config.DrawingDurationSeconds;
+                var revealPercentage = Math.Min(
+                    elapsedSeconds / totalDrawingSeconds * config.MaxWordRevealPercentage,
+                    config.MaxWordRevealPercentage
+                );
+
+                var revealedWord = wordRevealService.RevealWord(currentWord, revealPercentage);
+
+                var wordRevealedEvent = new WordRevealedEvent
+                {
+                    RoomId = roomId,
+                    RevealedWord = revealedWord,
+                    RevealPercentage = revealPercentage,
+                    Timestamp = DateTimeOffset.UtcNow
+                };
+
+                await onWordRevealed(wordRevealedEvent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error processing word reveal: " + ex.Message);
+            }
+        }
 
         private async Task HandlePhaseAsync(DrawGamePhase phase)
         {
@@ -217,6 +290,7 @@ public class RoundTimerService(
             var phaseChangedEvent = nextPhase.Value switch
             {
                 DrawGamePhase.Drawing => await CreateAndHandleNextRoundChangedEvent(basePhaseEvent),
+                DrawGamePhase.Reveal => await CreateAndHandleRevealPhaseChangedEvent(basePhaseEvent, roundNumber),
                 _ => await CreatePhaseChangedEvent(basePhaseEvent, roundNumber)
             };
 
@@ -237,7 +311,23 @@ public class RoundTimerService(
             {
                 RoundNumber = nextRoundNumber,
                 CurrentDrawerId = currentDrawerId,
-                CurrentWord = word
+            };
+        }
+
+        private async Task<PhaseChangedEvent> CreateAndHandleRevealPhaseChangedEvent(PhaseChangedEvent basePhaseEvent, int roundNumber)
+        {
+            await gameService.UpdateGamePhaseAsync(roomId, DrawGamePhase.Reveal);
+            var fullWord = await gameService.GetCurrentWordAsync(roomId);
+            if (fullWord == null)
+            {
+                Console.WriteLine("CreateAndHandleRevealPhaseChangedEvent | There must be something wrong for it to reach this case");
+                return basePhaseEvent;
+            }
+
+            return basePhaseEvent with
+            {
+                RoundNumber = roundNumber,
+                CurrentWord = fullWord
             };
         }
 
@@ -264,6 +354,10 @@ public class RoundTimerService(
             phaseCts?.Cancel();
             phaseCts?.Dispose();
             phaseTimer?.Dispose();
+
+            wordRevealCts?.Cancel();
+            wordRevealCts?.Dispose();
+            wordRevealTimer?.Dispose();
         }
     }
 }

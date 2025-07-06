@@ -106,6 +106,13 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         return result;
     }
 
+    public async Task<DrawPlayer?> GetPlayerAsync(string playerId, Guid roomId)
+    {
+        var players = await database.SetMembersAsync(GetRoomPlayerKey(roomId));
+        var player = players.FirstOrDefault(player => player.HasValue && JsonSerializer.Deserialize<DrawPlayer>(player!)!.PlayerId == playerId);
+        return player.HasValue ? JsonSerializer.Deserialize<DrawPlayer>(player!) : null;
+    }
+
     // ============================= WORD POOL METHODS =============================
 
     public async Task InitializeWordPoolAsync(Guid roomId, int wordCount)
