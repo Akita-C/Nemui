@@ -73,7 +73,7 @@ public class DrawGameHub(
 
     public async Task SendDrawAction(Guid roomId, DrawAction action)
     {
-        var isDrawingPhase = await gameService.GetCurrentPhaseAsync(roomId) == DrawGamePhase.Drawing;
+        var isDrawingPhase = await gameService.GetCurrentPhaseAsync(roomId) == DrawGamePhase.Drawing && currentUserService.UserId == await gameService.GetCurrentDrawerAsync(roomId);
         if (!isDrawingPhase)
         {
             logger.LogWarning("Invalid draw action attempt for room {RoomId} by user {UserId} because drawing phase is not active", roomId, currentUserService.UserId);

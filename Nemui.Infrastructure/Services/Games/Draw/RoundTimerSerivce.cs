@@ -247,7 +247,6 @@ public class RoundTimerService(
         {
             try
             {
-                Console.WriteLine("ProcessWordRevealAsync");
                 var currentWord = await gameService.GetCurrentWordAsync(roomId);
                 if (currentWord == null)
                 {
@@ -270,7 +269,6 @@ public class RoundTimerService(
                     RevealedWord = revealedWord,
                 };
 
-                Console.WriteLine("onWordRevealed");
                 await onWordRevealed(wordRevealedEvent);
             }
             catch (Exception ex)
