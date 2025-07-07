@@ -16,6 +16,7 @@ public interface IDrawGameClient
     Task RoundStarted(RoundStartedEvent roundEvent);
     Task EndedGame(EndedGameEvent roundEvent);
     Task PhaseChanged(PhaseChangedEvent phaseEvent);
+    Task WordToDraw(string word);
     Task WordRevealed(WordRevealedEvent wordRevealedEvent);
     Task GuessMessageWrongReceived(string playerId, string message);
     Task GuessMessageCorrectReceived(string playerId, int newScore);
