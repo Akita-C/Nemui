@@ -47,6 +47,8 @@ public class RoundTimerService(
                 return;
             }
 
+            await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
+
             roundTimer.Start();
 
             var startEvent = new RoundStartedEvent
@@ -315,6 +317,8 @@ public class RoundTimerService(
                 Console.WriteLine("CreateAndHandleNextRoundChangedEvent | There must be something wrong for it to reach this case");
             }
             await gameService.ResetAllPlayerHeartsAsync(roomId);
+
+            await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
 
             return basePhaseEvent with
             {

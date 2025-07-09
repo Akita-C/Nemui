@@ -127,7 +127,8 @@ public class DrawGameHub(
         }
         var gamePhase = await gameService.GetCurrentPhaseAsync(roomId);
         var playerHearts = await gameService.GetPlayerHeartsAsync(roomId, currentUserService.UserId!);
-        if (gamePhase != DrawGamePhase.Guessing && gamePhase != DrawGamePhase.Drawing || playerHearts <= 0)
+        var currentDrawer = await gameService.GetCurrentDrawerAsync(roomId);
+        if (gamePhase != DrawGamePhase.Guessing && gamePhase != DrawGamePhase.Drawing || playerHearts <= 0 || currentDrawer == currentUserService.UserId)
         {
             if (gamePhase != DrawGamePhase.Guessing && gamePhase != DrawGamePhase.Drawing)
             {
@@ -136,6 +137,10 @@ public class DrawGameHub(
             if (playerHearts <= 0)
             {
                 throw new HubException("User has no hearts left.");
+            }
+            if (currentDrawer == currentUserService.UserId)
+            {
+                throw new HubException("Drawer cannot guess.");
             }
         }
 

@@ -6,6 +6,7 @@ namespace Nemui.Application.Services.Games.Draw;
 public interface IDrawGameService
 {
     Task<DrawRoom?> GetRoomAsync(Guid roomId);
+    Task<DrawRoomConfig?> GetRoomConfigAsync(Guid roomId);
     Task<Guid> CreateRoomAsync(DrawHost host, CreateDrawRoom createRoom);
     Task<bool> DeleteRoomAsync(Guid roomId);
     Task<bool> IsRoomExistsAsync(Guid roomId);
@@ -52,6 +53,10 @@ public interface IDrawGameService
     // Player guess methods
     Task<(bool, int)> GuessWordAsync(Guid roomId, string playerId, string message);
 
+    // Round timing methods
+    Task SetRoundStartTimeAsync(Guid roomId, DateTimeOffset startTime);
+    Task<DateTimeOffset?> GetRoundStartTimeAsync(Guid roomId);
+
     // Key generation methods
     string GetRoomMetadataKey(Guid roomId) => $"room:{roomId}:metadata";
     string GetRoomPlayerKey(Guid roomId) => $"room:{roomId}:players";
@@ -60,4 +65,5 @@ public interface IDrawGameService
     string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
     string GetRoomPlayerHeartsKey(Guid roomId) => $"room:{roomId}:hearts";
     string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
+    string GetRoomStartTimeKey(Guid roomId) => $"room:{roomId}:start_time";
 }

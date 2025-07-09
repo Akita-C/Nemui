@@ -21,6 +21,12 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         return room.HasValue ? JsonSerializer.Deserialize<DrawRoom>(room!) : null;
     }
 
+    public async Task<DrawRoomConfig?> GetRoomConfigAsync(Guid roomId)
+    {
+        var room = await GetRoomAsync(roomId);
+        return room?.Config;
+    }
+
     public async Task<Guid> CreateRoomAsync(DrawHost host, CreateDrawRoom createRoom)
     {
         var room = new DrawRoom
@@ -338,7 +344,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error resetting all player hearts for room {RoomId}", roomId);
+            logger.LogError(ex, "Error resetting all player hearts for room {RoomId}DrawGame", roomId);
             return false;
         }
     }
@@ -352,9 +358,29 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
 
         var isCorrect = currentWord.Equals(message, StringComparison.OrdinalIgnoreCase);
         if (!isCorrect) return (false, 0);
-        var newScore = await IncrementPlayerScoreAsync(roomId, playerId, 1);
+        var scoreToAdd = await CalculateScoreBasedOnTimeAsync(roomId);
+        var newScore = await IncrementPlayerScoreAsync(roomId, playerId, scoreToAdd);
         await SetPlayerHeartsAsync(roomId, playerId, 0);
         return (true, (int)newScore);
+    }
+
+    // ============================= ROUND TIMING METHODS =============================
+
+    public async Task SetRoundStartTimeAsync(Guid roomId, DateTimeOffset startTime)
+    {
+        var key = GetRoomStartTimeKey(roomId);
+        await database.StringSetAsync(key, startTime.ToUnixTimeSeconds());
+        await database.KeyExpireAsync(key, cacheExpirationTime);
+    }
+
+    public async Task<DateTimeOffset?> GetRoundStartTimeAsync(Guid roomId)
+    {
+        var key = GetRoomStartTimeKey(roomId);
+        var timestamp = await database.StringGetAsync(key);
+
+        if (!timestamp.HasValue) return null;
+
+        return DateTimeOffset.FromUnixTimeSeconds((long)timestamp);
     }
 
     // ============================= KEY GENERATION METHODS =============================
@@ -366,6 +392,31 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     public string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
     public string GetRoomPlayerHeartsKey(Guid roomId) => $"room:{roomId}:hearts";
     public string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
+    public string GetRoomStartTimeKey(Guid roomId) => $"room:{roomId}:start_time";
+
+    private async Task<int> CalculateScoreBasedOnTimeAsync(Guid roomId)
+    {
+        try
+        {
+            var roundStartTime = await GetRoundStartTimeAsync(roomId);
+            var roomConfig = await GetRoomConfigAsync(roomId);
+
+            if (roundStartTime == null || roomConfig == null) return 1;
+
+            var elapsedTime = (DateTimeOffset.UtcNow - roundStartTime.Value).TotalSeconds;
+            var totalTime = roomConfig.DrawingDurationSeconds + roomConfig.GuessingDurationSeconds;
+
+            var remainingTime = totalTime - elapsedTime;
+            var score = (int)Math.Round(100.0 * (remainingTime / totalTime));
+
+            return Math.Max(1, score);
+        }
+        catch (Exception)
+        {
+            // Fallback to original score on any error
+            return 1;
+        }
+    }
 }
 
 public static class GameSessionHashKey
