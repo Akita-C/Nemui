@@ -4,15 +4,13 @@ using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Games.Draw;
 using Nemui.Shared.Enums;
 
-namespace Nemui.Infrastructure.Services.Games.Draw;
-
 public class RoundTimerService(
     IDrawGameService gameService,
     IWordRevealService wordRevealService,
     ILogger<RoundTimerService> logger
 ) : IRoundTimerService
 {
-    private readonly ConcurrentDictionary<Guid, RoundTimer> activeRounds = new();
+    private readonly ConcurrentDictionary<Guid, GameRoundManager> activeRounds = new();
     private bool isDisposed = false;
 
     public event Func<RoundStartedEvent, Task>? OnRoundStarted;
@@ -22,65 +20,70 @@ public class RoundTimerService(
 
     public async Task StartRoundAsync(Guid roomId, int totalRounds, DrawRoomConfig config)
     {
-        if (isDisposed) return;
+        if (isDisposed)
+        {
+            logger.LogWarning("Cannot start round for room {RoomId} - service is disposed", roomId);
+            return;
+        }
 
-        // Stop any existing round for this room
+        logger.LogDebug("Starting round for room {RoomId} with {TotalRounds} rounds", roomId, totalRounds);
         await StopRoundAsync(roomId);
 
-        var roundTimer = new RoundTimer(
+        var gameRoundManager = new GameRoundManager(
             roomId,
             totalRounds,
             config,
-            OnTimerElapsed,
-            OnPhaseElapsed,
-            OnWordRevealedElapsed,
             gameService,
-            wordRevealService
+            wordRevealService,
+            logger
         );
 
-        if (activeRounds.TryAdd(roomId, roundTimer))
+        var eventHandlers = new GameEventHandlers
         {
-            var (currentDrawerId, word, roundNumber) = await gameService.StartNextRoundAsync(roomId);
-            if (currentDrawerId == null || word == null)
-            {
-                logger.LogError("There must be something wrong for it to reach this case");
-                return;
-            }
+            OnRoundStarted = async (@event) => { if (OnRoundStarted != null) await OnRoundStarted(@event); },
+            OnEndedGame = async (@event) => { if (OnEndedGame != null) await OnEndedGame(@event); },
+            OnPhaseChanged = async (@event) => { if (OnPhaseChanged != null) await OnPhaseChanged(@event); },
+            OnWordRevealed = async (@event) => { if (OnWordRevealed != null) await OnWordRevealed(@event); }
+        };
 
-            await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
+        gameRoundManager.OnRoundStarted += eventHandlers.OnRoundStarted;
+        gameRoundManager.OnEndedGame += eventHandlers.OnEndedGame;
+        gameRoundManager.OnPhaseChanged += eventHandlers.OnPhaseChanged;
+        gameRoundManager.OnWordRevealed += eventHandlers.OnWordRevealed;
 
-            roundTimer.Start();
+        gameRoundManager.SetEventHandlers(eventHandlers);
 
-            var startEvent = new RoundStartedEvent
-            {
-                RoomId = roomId,
-                RoundNumber = roundNumber,
-                TotalRounds = totalRounds,
-                DurationSeconds = config.DrawingDurationSeconds,
-                StartTime = DateTimeOffset.UtcNow,
-                CurrentDrawerId = currentDrawerId,
-                CurrentWord = word
-            };
-
-            if (OnRoundStarted != null) await OnRoundStarted(startEvent);
+        if (activeRounds.TryAdd(roomId, gameRoundManager))
+        {
+            await gameRoundManager.StartAsync();
+            logger.LogDebug("Successfully started round for room {RoomId}", roomId);
+        }
+        else
+        {
+            logger.LogWarning("Failed to start round for room {RoomId}", roomId);
+            await gameRoundManager.StopAsync();
         }
     }
 
-    public Task StopRoundAsync(Guid roomId)
+    public async Task StopRoundAsync(Guid roomId)
     {
-        if (activeRounds.TryRemove(roomId, out var roundTimer))
+        if (activeRounds.TryRemove(roomId, out var gameRoundManager))
         {
-            roundTimer.Dispose();
+            logger.LogDebug("Stopping round for room {RoomId}", roomId);
+            await gameRoundManager.StopAsync();
         }
-
-        return Task.CompletedTask;
     }
 
     public async Task ForceRevealPhaseAsync(Guid roomId)
     {
-        if (activeRounds.TryGetValue(roomId, out var roundTimer))
+        if (activeRounds.TryGetValue(roomId, out var gameManager))
         {
-            await roundTimer.ForceRevealPhaseAsync();
+            logger.LogInformation("Forcing reveal phase for room {RoomId}", roomId);
+            await gameManager.ForceRevealPhaseAsync();
+        }
+        else
+        {
+            logger.LogWarning("Cannot force reveal phase - room {RoomId} not found", roomId);
         }
     }
 
@@ -91,351 +94,629 @@ public class RoundTimerService(
 
     public async Task<int?> GetRemainingTimeAsync(Guid roomId)
     {
-        if (activeRounds.TryGetValue(roomId, out var roundTimer))
+        if (activeRounds.TryGetValue(roomId, out var gameManager))
         {
-            return await roundTimer.GetRemainingSecondsAsync();
+            return await gameManager.GetRemainingSecondsAsync();
         }
-
         return null;
     }
 
-    private async Task OnTimerElapsed(Guid roomId)
+    public async void Dispose()
     {
-        if (activeRounds.TryRemove(roomId, out var roundTimer))
+        if (isDisposed) return;
+
+        logger.LogDebug("Disposing RoundTimerService...");
+        isDisposed = true;
+
+        var stopTasks = activeRounds.Values.Select(manager => manager.StopAsync());
+        await Task.WhenAll(stopTasks);
+
+        activeRounds.Clear();
+        logger.LogInformation("RoundTimerService disposed successfully");
+    }
+}
+
+public class GameEventHandlers
+{
+    public Func<RoundStartedEvent, Task>? OnRoundStarted;
+    public Func<EndedGameEvent, Task>? OnEndedGame;
+    public Func<PhaseChangedEvent, Task>? OnPhaseChanged;
+    public Func<WordRevealedEvent, Task>? OnWordRevealed;
+}
+
+public class GameRoundManager : IDisposable
+{
+    private readonly Guid roomId;
+    private readonly int totalRounds;
+    private readonly DrawRoomConfig config;
+    private readonly IDrawGameService gameService;
+    private readonly IWordRevealService wordRevealService;
+    private readonly ILogger logger;
+
+    // State Management - Thread-safe
+    private readonly SemaphoreSlim stateLock = new(1, 1);
+    private readonly CancellationTokenSource globalCts = new();
+    private DrawGamePhase currentPhase = DrawGamePhase.Waiting;
+
+    // Current Phase Management
+    private PhaseRunner? currentPhaseRunner;
+    private WordRevealRunner? wordRevealRunner;
+
+
+    // Event Handlers
+    private GameEventHandlers? eventHandlers;
+    // Track for later unsubscribing
+    private Func<DrawGamePhase, Task>? phaseCompletedHandler;
+    private Func<WordRevealedEvent, Task>? wordRevealedHandler;
+    // Event for outside world subscribe to
+    public event Func<RoundStartedEvent, Task>? OnRoundStarted;
+    public event Func<EndedGameEvent, Task>? OnEndedGame;
+    public event Func<PhaseChangedEvent, Task>? OnPhaseChanged;
+    public event Func<WordRevealedEvent, Task>? OnWordRevealed;
+
+    public GameRoundManager(
+        Guid roomId,
+        int totalRounds,
+        DrawRoomConfig config,
+        IDrawGameService gameService,
+        IWordRevealService wordRevealService,
+        ILogger logger)
+    {
+        this.roomId = roomId;
+        this.totalRounds = totalRounds;
+        this.config = config;
+        this.gameService = gameService;
+        this.wordRevealService = wordRevealService;
+        this.logger = logger;
+    }
+
+    public void SetEventHandlers(GameEventHandlers handlers) => eventHandlers = handlers;
+
+    public async Task StartAsync()
+    {
+        await stateLock.WaitAsync(globalCts.Token);
+        try
         {
-            roundTimer.Dispose();
-
-            var endEvent = new EndedGameEvent
+            if (currentPhase != DrawGamePhase.Waiting)
             {
-                RoomId = roomId
-            };
+                logger.LogWarning("Cannot start game for room {RoomId} - already in phase {Phase}", roomId, currentPhase);
+                return;
+            }
 
-            if (OnEndedGame != null) await OnEndedGame(endEvent);
+            logger.LogDebug("Starting game for room {RoomId}", roomId);
+            await StartFirstRoundAsync();
+        }
+        finally
+        {
+            stateLock.Release();
         }
     }
 
-    private async Task OnPhaseElapsed(PhaseChangedEvent phaseEvent)
+    public async Task StopAsync()
     {
-        if (OnPhaseChanged != null) await OnPhaseChanged(phaseEvent);
+        await stateLock.WaitAsync();
+        try
+        {
+            if (currentPhase == DrawGamePhase.Finished)
+            {
+                logger.LogDebug("Game already finished for room {RoomId}", roomId);
+                return;
+            }
+
+            logger.LogDebug("Stopping game for room {RoomId}", roomId);
+            currentPhase = DrawGamePhase.Finished;
+            globalCts.Cancel();
+
+            await CleanupCurrentPhaseAsync();
+            await CleanupWordRevealAsync();
+
+            logger.LogDebug("Game for room {RoomId} stopped successfully", roomId);
+        }
+        finally
+        {
+            stateLock.Release();
+        }
     }
 
-    private async Task OnWordRevealedElapsed(WordRevealedEvent wordRevealedEvent)
+    public async Task ForceRevealPhaseAsync()
     {
-        if (OnWordRevealed != null) await OnWordRevealed(wordRevealedEvent);
+        await stateLock.WaitAsync(globalCts.Token);
+        try
+        {
+            if (currentPhase == DrawGamePhase.Waiting || currentPhase == DrawGamePhase.Finished)
+            {
+                logger.LogWarning("Cannot force reveal phase for room {RoomId} - already in waiting or finished phase", roomId);
+                return;
+            }
+
+            logger.LogDebug("Forcing reveal phase for room {RoomId}", roomId);
+            await CleanupCurrentPhaseAsync();
+            await CleanupWordRevealAsync();
+
+            await StartPhaseAsync(DrawGamePhase.Reveal);
+        }
+        finally
+        {
+            stateLock.Release();
+        }
+    }
+
+    public async Task<int> GetRemainingSecondsAsync()
+    {
+        await stateLock.WaitAsync(globalCts.Token);
+        try
+        {
+            return currentPhaseRunner?.GetRemainingSeconds() ?? 0;
+        }
+        finally
+        {
+            stateLock.Release();
+        }
+    }
+
+    private async Task StartFirstRoundAsync()
+    {
+        var (currentDrawerId, word, roundNumber) = await gameService.StartNextRoundAsync(roomId);
+        if (currentDrawerId == null || word == null)
+        {
+            logger.LogError("Failed to start first round for room {RoomId} - no drawer or word", roomId);
+            return;
+        }
+
+        await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
+
+        var startEvent = new RoundStartedEvent
+        {
+            RoomId = roomId,
+            RoundNumber = roundNumber,
+            TotalRounds = totalRounds,
+            DurationSeconds = config.DrawingDurationSeconds,
+            StartTime = DateTimeOffset.UtcNow,
+            CurrentDrawerId = currentDrawerId,
+            CurrentWord = word
+        };
+
+        if (OnRoundStarted != null) await OnRoundStarted(startEvent);
+
+        await StartPhaseAsync(DrawGamePhase.Drawing);
+    }
+
+    private async Task StartPhaseAsync(DrawGamePhase phase)
+    {
+        logger.LogDebug("Starting phase {Phase} for room {RoomId}", phase, roomId);
+        currentPhase = phase;
+
+        currentPhaseRunner = new PhaseRunner(
+            roomId,
+            phase,
+            GetPhaseDuration(phase),
+            globalCts.Token,
+            logger
+        );
+
+        // Store the handler for later unsubscribing
+        phaseCompletedHandler = OnPhaseCompletedAsync;
+        currentPhaseRunner.OnPhaseCompleted += phaseCompletedHandler;
+
+        if (phase == DrawGamePhase.Drawing && config.EnableWordReveal) await StartWordRevealAsync();
+
+        var phaseEvent = await CreatePhaseChangedEventAsync(phase);
+        if (OnPhaseChanged != null) await OnPhaseChanged(phaseEvent);
+
+        await currentPhaseRunner.StartAsync();
+    }
+
+    private async Task StartWordRevealAsync()
+    {
+        logger.LogDebug("Starting word reveal for room {RoomId}", roomId);
+
+        wordRevealRunner = new WordRevealRunner(
+            roomId,
+            config,
+            gameService,
+            wordRevealService,
+            globalCts.Token,
+            logger
+        );
+
+        // Store the handler for later unsubscribing
+        wordRevealedHandler = async (@event) => { if (OnWordRevealed != null) await OnWordRevealed(@event); };
+        wordRevealRunner.OnWordRevealed += wordRevealedHandler;
+
+        await wordRevealRunner.StartAsync();
+    }
+
+    private async Task OnPhaseCompletedAsync(DrawGamePhase completedPhase)
+    {
+        await stateLock.WaitAsync(globalCts.Token);
+        try
+        {
+            if (currentPhase == DrawGamePhase.Finished)
+            {
+                logger.LogDebug("Ignoring phase completion for room {RoomId} - game already finished", roomId);
+                return;
+            }
+
+            logger.LogDebug("Phase {Phase} completed for room {RoomId}", completedPhase, roomId);
+
+            if (completedPhase == DrawGamePhase.Guessing && wordRevealRunner != null)
+                await CleanupWordRevealAsync();
+
+            var roundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0;
+            var nextPhase = GetNextPhase(completedPhase, roundNumber);
+
+            if (!nextPhase.HasValue)
+            {
+                logger.LogDebug("Game ended for room {RoomId}", roomId);
+                currentPhase = DrawGamePhase.Finished;
+                await CleanupCurrentPhaseAsync();
+                var endedEvent = new EndedGameEvent { RoomId = roomId };
+                if (OnEndedGame != null) await OnEndedGame(endedEvent);
+                return;
+            }
+
+            await HandlePhaseTransitionAsync(nextPhase.Value);
+            await CleanupCurrentPhaseAsync();
+            await StartPhaseAsync(nextPhase.Value);
+        }
+        finally
+        {
+            stateLock.Release();
+        }
+    }
+
+    private async Task HandlePhaseTransitionAsync(DrawGamePhase nextPhase)
+    {
+        switch (nextPhase)
+        {
+            case DrawGamePhase.Drawing:
+                logger.LogInformation("Transitioning to new drawing round for room {RoomId}", roomId);
+                await gameService.StartNextRoundAsync(roomId);
+                await gameService.ResetAllPlayerHeartsAsync(roomId);
+                await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
+                break;
+
+            case DrawGamePhase.Reveal:
+                logger.LogInformation("Transitioning to reveal phase for room {RoomId}", roomId);
+                await gameService.UpdateGamePhaseAsync(roomId, DrawGamePhase.Reveal);
+                break;
+
+            case DrawGamePhase.Guessing:
+                logger.LogInformation("Transitioning to guessing phase for room {RoomId}", roomId);
+                await gameService.UpdateGamePhaseAsync(roomId, DrawGamePhase.Guessing);
+                break;
+        }
+    }
+
+    private async Task<PhaseChangedEvent> CreatePhaseChangedEventAsync(DrawGamePhase phase)
+    {
+        var baseEvent = new PhaseChangedEvent
+        {
+            RoomId = roomId,
+            Phase = phase,
+            DurationSeconds = GetPhaseDuration(phase),
+            StartTime = DateTimeOffset.UtcNow,
+        };
+
+        return phase switch
+        {
+            DrawGamePhase.Drawing => baseEvent with
+            {
+                RoundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0,
+                CurrentWord = await gameService.GetCurrentWordAsync(roomId),
+                CurrentDrawerId = await gameService.GetCurrentDrawerAsync(roomId),
+            },
+            DrawGamePhase.Reveal => baseEvent with
+            {
+                RoundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0,
+                CurrentWord = await gameService.GetCurrentWordAsync(roomId),
+            },
+            _ => baseEvent with
+            {
+                RoundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0,
+            }
+        };
+    }
+
+    private DrawGamePhase? GetNextPhase(DrawGamePhase currentPhase, int roundNumber) => currentPhase switch
+    {
+        DrawGamePhase.Drawing => DrawGamePhase.Guessing,
+        DrawGamePhase.Guessing => DrawGamePhase.Reveal,
+        DrawGamePhase.Reveal => roundNumber < totalRounds ? DrawGamePhase.Drawing : null,
+        _ => null
+    };
+
+    private int GetPhaseDuration(DrawGamePhase phase) => phase switch
+    {
+        DrawGamePhase.Drawing => config.DrawingDurationSeconds,
+        DrawGamePhase.Guessing => config.GuessingDurationSeconds,
+        DrawGamePhase.Reveal => config.RevealDurationSeconds,
+        _ => throw new ArgumentException($"Invalid phase: {phase}")
+    };
+
+    private async Task CleanupCurrentPhaseAsync()
+    {
+        if (currentPhaseRunner != null)
+        {
+            if (phaseCompletedHandler != null)
+            {
+                currentPhaseRunner.OnPhaseCompleted -= phaseCompletedHandler;
+                phaseCompletedHandler = null;
+            }
+            await currentPhaseRunner.StopAsync();
+            currentPhaseRunner.Dispose();
+            currentPhaseRunner = null;
+        }
+    }
+
+    private async Task CleanupWordRevealAsync()
+    {
+        if (wordRevealRunner != null)
+        {
+            if (wordRevealedHandler != null)
+            {
+                wordRevealRunner.OnWordRevealed -= wordRevealedHandler;
+                wordRevealedHandler = null;
+            }
+            await wordRevealRunner.StopAsync();
+            wordRevealRunner.Dispose();
+            wordRevealRunner = null;
+        }
     }
 
     public void Dispose()
     {
-        if (isDisposed) return;
+        logger.LogDebug("Disposing GameRoundManager for room {RoomId}", roomId);
 
-        foreach (var kvp in activeRounds)
+        Task.Run(async () =>
         {
-            kvp.Value.Dispose();
-        }
+            await StopAsync();
 
-        activeRounds.Clear();
-        isDisposed = true;
+            if (currentPhaseRunner != null)
+            {
+                if (OnRoundStarted != null && eventHandlers != null && eventHandlers.OnRoundStarted != null)
+                    OnRoundStarted -= eventHandlers.OnRoundStarted;
+
+                if (OnEndedGame != null && eventHandlers != null && eventHandlers.OnEndedGame != null)
+                    OnEndedGame -= eventHandlers.OnEndedGame;
+
+                if (OnPhaseChanged != null && eventHandlers != null && eventHandlers.OnPhaseChanged != null)
+                    OnPhaseChanged -= eventHandlers.OnPhaseChanged;
+
+                if (OnWordRevealed != null && eventHandlers != null && eventHandlers.OnWordRevealed != null)
+                    OnWordRevealed -= eventHandlers.OnWordRevealed;
+
+                eventHandlers = null;
+            }
+        }).Wait(TimeSpan.FromSeconds(5));
+
+        globalCts?.Dispose();
+        stateLock?.Dispose();
+    }
+}
+
+public class PhaseRunner : IDisposable
+{
+    private readonly Guid roomId;
+    private readonly DrawGamePhase phase;
+    private readonly int durationSeconds;
+    private readonly CancellationToken cancellationToken;
+    private readonly ILogger logger;
+    private readonly DateTimeOffset startTime;
+
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? phaseCts;
+    private Task? runnerTask;
+
+    public event Func<DrawGamePhase, Task>? OnPhaseCompleted;
+
+    private readonly TaskCompletionSource<bool> completionSource = new();
+
+    public PhaseRunner(Guid roomId, DrawGamePhase phase, int durationSeconds, CancellationToken cancellationToken, ILogger logger)
+    {
+        this.roomId = roomId;
+        this.phase = phase;
+        this.durationSeconds = durationSeconds;
+        this.cancellationToken = cancellationToken;
+        this.logger = logger;
+        this.startTime = DateTimeOffset.UtcNow;
     }
 
-    private class RoundTimer(
-        Guid roomId,
-        int totalRounds,
-        DrawRoomConfig config,
-        Func<Guid, Task> onEndedGame,
-        Func<PhaseChangedEvent, Task> onPhaseElapsed,
-        Func<WordRevealedEvent, Task> onWordRevealed,
-        IDrawGameService gameService,
-        IWordRevealService wordRevealService
-        ) : IDisposable
+    public async Task StartAsync()
     {
-        private readonly Guid roomId = roomId;
-        private readonly int totalRounds = totalRounds;
-        private readonly DrawRoomConfig config = config;
-        private readonly Func<Guid, Task> onEndedGame = onEndedGame;
-        private readonly Func<PhaseChangedEvent, Task> onPhaseElapsed = onPhaseElapsed;
-        private readonly Func<WordRevealedEvent, Task> onWordRevealed = onWordRevealed;
-        private readonly IDrawGameService gameService = gameService;
-        private readonly IWordRevealService wordRevealService = wordRevealService;
+        logger.LogDebug("Starting phase runner for {Phase} in room {RoomId} with duration {DurationSeconds}", phase, roomId, durationSeconds);
 
+        phaseCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(durationSeconds));
 
-        // ============== Phase timers ==============
-        private PeriodicTimer? phaseTimer;
-        private CancellationTokenSource? phaseCts;
-        private DateTimeOffset phaseStartTime;
-
-        // ============== Word reveal timer ==============
-        private PeriodicTimer? wordRevealTimer;
-        private CancellationTokenSource? wordRevealCts;
-        private DateTimeOffset wordRevealStartTime;
-        private Task? wordRevealTask;
-
-
-        public async Task<int> GetRemainingSecondsAsync()
+        // Timer task - signals completion without blocking
+        runnerTask = Task.Run(async () =>
         {
-            var elapsed = (int)(DateTimeOffset.UtcNow - phaseStartTime).TotalSeconds;
-            var phaseDuration = GetPhaseDuration(await gameService.GetCurrentPhaseAsync(roomId));
-            return Math.Max(0, phaseDuration - elapsed);
-        }
-
-        public async Task ForceRevealPhaseAsync()
-        {
-            CleanUpWordRevealTimers();
-            CleanUpPhaseTimers();
-
-            var basePhaseEvent = new PhaseChangedEvent
-            {
-                RoomId = roomId,
-                Phase = DrawGamePhase.Reveal,
-                DurationSeconds = GetPhaseDuration(DrawGamePhase.Reveal),
-                StartTime = DateTimeOffset.UtcNow,
-            };
-
-            var phaseChangedEvent = await CreateAndHandleRevealPhaseChangedEvent(basePhaseEvent, await gameService.GetCurrentRoundAsync(roomId) ?? 0);
-
-            await onPhaseElapsed(phaseChangedEvent);
-            await StartPhaseAsync(DrawGamePhase.Reveal);
-        }
-
-        public void Start()
-        {
-            _ = StartPhaseAsync(DrawGamePhase.Drawing);
-        }
-
-        private async Task StartPhaseAsync(DrawGamePhase phase)
-        {
-            // Clean up previous phase timers
-            CleanUpPhaseTimers();
-            phaseCts = new CancellationTokenSource();
-            phaseStartTime = DateTimeOffset.UtcNow;
-            var duration = GetPhaseDuration(phase);
-            phaseTimer = new PeriodicTimer(TimeSpan.FromSeconds(duration));
-
-            if (phase == DrawGamePhase.Drawing && config.EnableWordReveal)
-                StartWordRevealTimer();
-
             try
             {
-                while (await phaseTimer.WaitForNextTickAsync(phaseCts.Token))
+                while (await timer.WaitForNextTickAsync(phaseCts.Token))
                 {
-                    await HandlePhaseAsync(phase);
+                    logger.LogDebug("Phase {Phase} timer tick for room {RoomId}", phase, roomId);
+                    // Signal completion without calling handler directly, doesnot await anything, so it's not a blocking call
+                    completionSource.TrySetResult(true);
+                    logger.LogDebug("Phase {Phase} completion signal set for room {RoomId}", phase, roomId);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Phase {Phase} cancelled for room {RoomId} in timer task", phase, roomId);
+                completionSource.TrySetCanceled();
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Object reference not set to an instance of an object. in StartPhaseAsync");
-                Console.WriteLine(ex.Message);
+                logger.LogError(ex, "Error in phase runner for {Phase} in room {RoomId}", phase, roomId);
+                completionSource.TrySetException(ex);
             }
-        }
+        }, phaseCts.Token);
 
-        private int GetPhaseDuration(DrawGamePhase phase) => phase switch
+        // Completion handler - processes completion signal to avoid deadlock  
+        _ = Task.Run(async () =>
         {
-            DrawGamePhase.Drawing => config.DrawingDurationSeconds,
-            DrawGamePhase.Guessing => config.GuessingDurationSeconds,
-            DrawGamePhase.Reveal => config.RevealDurationSeconds,
-            _ => throw new ArgumentException("Invalid phase")
-        };
-
-        private void StartWordRevealTimer()
-        {
-            CleanUpWordRevealTimers();
-            wordRevealCts = new CancellationTokenSource();
-            wordRevealStartTime = DateTimeOffset.UtcNow;
-
-            wordRevealTimer = new PeriodicTimer(TimeSpan.FromSeconds(config!.WordRevealIntervalSeconds));
-
-            wordRevealTask = Task.Run(async () =>
+            try
             {
-                try
+                var result = await completionSource.Task;
+                if (OnPhaseCompleted != null) await OnPhaseCompleted(phase);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Phase {Phase} cancelled for room {RoomId} in completion handler", phase, roomId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in phase completion for {Phase} in room {RoomId}", phase, roomId);
+            }
+        });
+    }
+
+    public async Task StopAsync()
+    {
+        logger.LogDebug("Stopping phase runner for {Phase} in room {RoomId}", phase, roomId);
+
+        phaseCts?.Cancel();
+        completionSource.TrySetCanceled();
+    }
+
+    public int GetRemainingSeconds()
+    {
+        var elapsed = (int)(DateTimeOffset.UtcNow - startTime).TotalSeconds;
+        return Math.Max(0, durationSeconds - elapsed);
+    }
+
+    public void Dispose()
+    {
+        OnPhaseCompleted = null;
+        phaseCts?.Dispose();
+        timer?.Dispose();
+    }
+}
+
+public class WordRevealRunner : IDisposable
+{
+    private readonly Guid roomId;
+    private readonly DrawRoomConfig config;
+    private readonly IDrawGameService gameService;
+    private readonly IWordRevealService wordRevealService;
+    private readonly CancellationToken cancellationToken;
+    private readonly ILogger logger;
+    private readonly DateTimeOffset startTime;
+
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? revealCts;
+    private Task? revealTask;
+
+    public event Func<WordRevealedEvent, Task>? OnWordRevealed;
+
+    public WordRevealRunner(
+        Guid roomId,
+        DrawRoomConfig config,
+        IDrawGameService gameService,
+        IWordRevealService wordRevealService,
+        CancellationToken cancellationToken,
+        ILogger logger)
+    {
+        this.roomId = roomId;
+        this.config = config;
+        this.gameService = gameService;
+        this.wordRevealService = wordRevealService;
+        this.cancellationToken = cancellationToken;
+        this.logger = logger;
+        this.startTime = DateTimeOffset.UtcNow;
+    }
+
+    public async Task StartAsync()
+    {
+        revealCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(config.WordRevealIntervalSeconds));
+
+        revealTask = Task.Run(async () =>
+        {
+            try
+            {
+                // Initial reveal
+                await ProcessWordRevealAsync();
+
+                // Periodic reveals
+                while (await timer.WaitForNextTickAsync(revealCts.Token))
                 {
-                    // Process the word reveal immediately
                     await ProcessWordRevealAsync();
-
-                    // Process the word reveal every interval
-                    while (await wordRevealTimer.WaitForNextTickAsync(wordRevealCts.Token))
-                    {
-                        await ProcessWordRevealAsync();
-                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    Console.WriteLine("Word reveal timer canceled");
-                }
-                catch (NullReferenceException)
-                {
-                    Console.WriteLine("Word reveal timer stopped due to cleanup - this is expected");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error in word reveal timer: " + ex.Message);
-                }
-            });
-        }
-
-        private async Task ProcessWordRevealAsync()
-        {
-            try
+            }
+            catch (OperationCanceledException)
             {
-                var currentWord = await gameService.GetCurrentWordAsync(roomId);
-                if (currentWord == null)
-                {
-                    Console.WriteLine("ProcessWordRevealAsync | There must be something wrong for it to reach this case ");
-                    return;
-                }
-
-                var elapsedSeconds = (int)(DateTimeOffset.UtcNow - wordRevealStartTime).TotalSeconds;
-                var totalDrawingSeconds = config.DrawingDurationSeconds;
-                var revealPercentage = Math.Min(
-                    (float)elapsedSeconds / totalDrawingSeconds * config.MaxWordRevealPercentage,
-                    config.MaxWordRevealPercentage
-                );
-
-                var revealedWord = wordRevealService.RevealWord(currentWord, revealPercentage);
-
-                var wordRevealedEvent = new WordRevealedEvent
-                {
-                    RoomId = roomId,
-                    RevealedWord = revealedWord,
-                };
-
-                await onWordRevealed(wordRevealedEvent);
+                logger.LogDebug("Word reveal cancelled for room {RoomId}", roomId);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error processing word reveal: " + ex.Message);
+                logger.LogError(ex, "Error in word reveal for room {RoomId}", roomId);
+            }
+        }, revealCts.Token);
+    }
+
+    public async Task StopAsync()
+    {
+        logger.LogDebug("Stopping word reveal for room {RoomId}", roomId);
+
+        revealCts?.Cancel();
+
+        if (revealTask != null)
+        {
+            try
+            {
+                await revealTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error stopping word reveal for room {RoomId}", roomId);
             }
         }
+    }
 
-        private async Task HandlePhaseAsync(DrawGamePhase phase)
+    private async Task ProcessWordRevealAsync()
+    {
+        try
         {
-            var roundNumber = await gameService.GetCurrentRoundAsync(roomId) ?? 0;
-            var nextPhase = GetNextPhase(phase, roundNumber);
-
-            if (!nextPhase.HasValue)
+            var currentWord = await gameService.GetCurrentWordAsync(roomId);
+            if (currentWord == null)
             {
-                await onEndedGame(roomId);
+                logger.LogWarning("No current word found for room {RoomId}", roomId);
                 return;
             }
 
-            var basePhaseEvent = new PhaseChangedEvent
+            var elapsedSeconds = (int)(DateTimeOffset.UtcNow - startTime).TotalSeconds;
+            var revealPercentage = Math.Min(
+                (float)elapsedSeconds / config.DrawingDurationSeconds * config.MaxWordRevealPercentage,
+                config.MaxWordRevealPercentage
+            );
+
+            var revealedWord = wordRevealService.RevealWord(currentWord, revealPercentage);
+
+            var wordRevealedEvent = new WordRevealedEvent
             {
                 RoomId = roomId,
-                Phase = nextPhase.Value,
-                DurationSeconds = GetPhaseDuration(nextPhase.Value),
-                StartTime = DateTimeOffset.UtcNow,
+                RevealedWord = revealedWord,
             };
 
-            var phaseChangedEvent = nextPhase.Value switch
-            {
-                DrawGamePhase.Drawing => await CreateAndHandleNextRoundChangedEvent(basePhaseEvent),
-                DrawGamePhase.Reveal => await CreateAndHandleRevealPhaseChangedEvent(basePhaseEvent, roundNumber),
-                _ => await CreateAndHandleDefaultPhaseChangedEvent(basePhaseEvent, roundNumber)
-            };
-
-            await onPhaseElapsed(phaseChangedEvent);
-            await StartPhaseAsync(nextPhase.Value);
+            if (OnWordRevealed != null) await OnWordRevealed(wordRevealedEvent);
         }
-
-        private async Task<PhaseChangedEvent> CreateAndHandleNextRoundChangedEvent(PhaseChangedEvent basePhaseEvent)
+        catch (Exception ex)
         {
-            var (currentDrawerId, word, nextRoundNumber) = await gameService.StartNextRoundAsync(roomId);
-            if (currentDrawerId == null || word == null)
-            {
-                Console.WriteLine("CreateAndHandleNextRoundChangedEvent | There must be something wrong for it to reach this case");
-            }
-            await gameService.ResetAllPlayerHeartsAsync(roomId);
-
-            await gameService.SetRoundStartTimeAsync(roomId, DateTimeOffset.UtcNow);
-
-            return basePhaseEvent with
-            {
-                RoundNumber = nextRoundNumber,
-                CurrentWord = word,
-                CurrentDrawerId = currentDrawerId
-            };
+            logger.LogError(ex, "Error processing word reveal for room {RoomId}", roomId);
         }
+    }
 
-        private async Task<PhaseChangedEvent> CreateAndHandleRevealPhaseChangedEvent(PhaseChangedEvent basePhaseEvent, int roundNumber)
-        {
-            await gameService.UpdateGamePhaseAsync(roomId, DrawGamePhase.Reveal);
-            var fullWord = await gameService.GetCurrentWordAsync(roomId);
-            if (fullWord == null)
-            {
-                Console.WriteLine("CreateAndHandleRevealPhaseChangedEvent | There must be something wrong for it to reach this case");
-                return basePhaseEvent;
-            }
-
-            return basePhaseEvent with
-            {
-                RoundNumber = roundNumber,
-                CurrentWord = fullWord
-            };
-        }
-
-        private async Task<PhaseChangedEvent> CreateAndHandleDefaultPhaseChangedEvent(PhaseChangedEvent basePhaseEvent, int roundNumber)
-        {
-            await gameService.UpdateGamePhaseAsync(roomId, basePhaseEvent.Phase);
-
-            if (basePhaseEvent.Phase == DrawGamePhase.Guessing) CleanUpWordRevealTimers();
-
-            return basePhaseEvent with
-            {
-                RoundNumber = roundNumber,
-            };
-        }
-
-        private DrawGamePhase? GetNextPhase(DrawGamePhase currentPhase, int roundNumber) => currentPhase switch
-        {
-            DrawGamePhase.Drawing => DrawGamePhase.Guessing,
-            DrawGamePhase.Guessing => DrawGamePhase.Reveal,
-            DrawGamePhase.Reveal => roundNumber < totalRounds ? DrawGamePhase.Drawing : null,
-            _ => throw new ArgumentException("Invalid phase")
-        };
-
-        private void CleanUpPhaseTimers()
-        {
-            try
-            {
-                phaseCts?.Cancel();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error cleaning up phase timers: " + ex.Message);
-            }
-            finally
-            {
-                phaseCts?.Dispose();
-                phaseTimer?.Dispose();
-
-                phaseCts = null;
-                phaseTimer = null;
-            }
-        }
-
-        private void CleanUpWordRevealTimers()
-        {
-            try
-            {
-                wordRevealCts?.Cancel();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error cleaning up word reveal timers: " + ex.Message);
-            }
-            finally
-            {
-                wordRevealCts?.Dispose();
-                wordRevealTimer?.Dispose();
-
-                wordRevealCts = null;
-                wordRevealTimer = null;
-                wordRevealTask = null;
-            }
-        }
-
-        public void Dispose()
-        {
-            CleanUpPhaseTimers();
-            CleanUpWordRevealTimers();
-        }
+    public void Dispose()
+    {
+        OnWordRevealed = null;
+        revealCts?.Dispose();
+        timer?.Dispose();
     }
 }
