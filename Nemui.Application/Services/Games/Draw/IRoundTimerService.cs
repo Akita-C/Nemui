@@ -6,6 +6,7 @@ public interface IRoundTimerService : IDisposable
 {
     Task StartRoundAsync(Guid roomId, int totalRounds, DrawRoomConfig config);
     Task StopRoundAsync(Guid roomId);
+    Task ForceRevealPhaseAsync(Guid roomId);
     Task<bool> IsRoundActiveAsync(Guid roomId);
     Task<int?> GetRemainingTimeAsync(Guid roomId);
 

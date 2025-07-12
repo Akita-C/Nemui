@@ -76,6 +76,14 @@ public class RoundTimerService(
         return Task.CompletedTask;
     }
 
+    public async Task ForceRevealPhaseAsync(Guid roomId)
+    {
+        if (activeRounds.TryGetValue(roomId, out var roundTimer))
+        {
+            await roundTimer.ForceRevealPhaseAsync();
+        }
+    }
+
     public Task<bool> IsRoundActiveAsync(Guid roomId)
     {
         return Task.FromResult(activeRounds.ContainsKey(roomId));
@@ -169,6 +177,25 @@ public class RoundTimerService(
             return Math.Max(0, phaseDuration - elapsed);
         }
 
+        public async Task ForceRevealPhaseAsync()
+        {
+            CleanUpWordRevealTimers();
+            CleanUpPhaseTimers();
+
+            var basePhaseEvent = new PhaseChangedEvent
+            {
+                RoomId = roomId,
+                Phase = DrawGamePhase.Reveal,
+                DurationSeconds = GetPhaseDuration(DrawGamePhase.Reveal),
+                StartTime = DateTimeOffset.UtcNow,
+            };
+
+            var phaseChangedEvent = await CreateAndHandleRevealPhaseChangedEvent(basePhaseEvent, await gameService.GetCurrentRoundAsync(roomId) ?? 0);
+
+            await onPhaseElapsed(phaseChangedEvent);
+            await StartPhaseAsync(DrawGamePhase.Reveal);
+        }
+
         public void Start()
         {
             _ = StartPhaseAsync(DrawGamePhase.Drawing);
@@ -179,10 +206,8 @@ public class RoundTimerService(
             // Clean up previous phase timers
             CleanUpPhaseTimers();
             phaseCts = new CancellationTokenSource();
-
             phaseStartTime = DateTimeOffset.UtcNow;
             var duration = GetPhaseDuration(phase);
-
             phaseTimer = new PeriodicTimer(TimeSpan.FromSeconds(duration));
 
             if (phase == DrawGamePhase.Drawing && config.EnableWordReveal)
@@ -197,6 +222,7 @@ public class RoundTimerService(
             }
             catch (Exception ex)
             {
+                Console.WriteLine("Object reference not set to an instance of an object. in StartPhaseAsync");
                 Console.WriteLine(ex.Message);
             }
         }
@@ -367,9 +393,22 @@ public class RoundTimerService(
 
         private void CleanUpPhaseTimers()
         {
-            phaseCts?.Cancel();
-            phaseCts?.Dispose();
-            phaseTimer?.Dispose();
+            try
+            {
+                phaseCts?.Cancel();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error cleaning up phase timers: " + ex.Message);
+            }
+            finally
+            {
+                phaseCts?.Dispose();
+                phaseTimer?.Dispose();
+
+                phaseCts = null;
+                phaseTimer = null;
+            }
         }
 
         private void CleanUpWordRevealTimers()

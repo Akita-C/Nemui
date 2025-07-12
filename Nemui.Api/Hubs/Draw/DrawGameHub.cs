@@ -144,7 +144,7 @@ public class DrawGameHub(
             }
         }
 
-        var (isCorrect, newScore) = await gameService.GuessWordAsync(roomId, currentUserService.UserId!, message);
+        var (isCorrect, newScore, isAllPlayersGuessed) = await gameService.GuessWordAsync(roomId, currentUserService.UserId!, message);
         if (isCorrect)
             await Clients.Group(gameService.GetRoomMetadataKey(roomId)).GuessMessageCorrectReceived(currentUserService.UserId!, newScore);
         else
@@ -154,5 +154,6 @@ public class DrawGameHub(
                 gameService.DecrementPlayerHeartsAsync(roomId, currentUserService.UserId!)
             ]);
         }
+        if (isAllPlayersGuessed) await roundTimerService.ForceRevealPhaseAsync(roomId);
     }
 }

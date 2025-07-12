@@ -51,7 +51,8 @@ public interface IDrawGameService
     Task<bool> ResetAllPlayerHeartsAsync(Guid roomId);
 
     // Player guess methods
-    Task<(bool, int)> GuessWordAsync(Guid roomId, string playerId, string message);
+    Task<bool> CheckAllPlayersGuessedAsync(Guid roomId);
+    Task<(bool isCorrect, int score, bool isAllPlayersGuessed)> GuessWordAsync(Guid roomId, string playerId, string message);
 
     // Round timing methods
     Task SetRoundStartTimeAsync(Guid roomId, DateTimeOffset startTime);

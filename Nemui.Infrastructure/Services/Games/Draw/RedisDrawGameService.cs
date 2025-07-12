@@ -350,18 +350,31 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     }
 
     // ============================= PLAYER GUESS METHODS =============================
+    public async Task<bool> CheckAllPlayersGuessedAsync(Guid roomId)
+    {
+        var playerHearts = await database.HashGetAllAsync(GetRoomPlayerHeartsKey(roomId));
+        if (playerHearts.Length == 0) return false;
+        var currentDrawerId = await GetCurrentDrawerAsync(roomId);
+        if (currentDrawerId == null) return false;
 
-    public async Task<(bool, int)> GuessWordAsync(Guid roomId, string playerId, string message)
+        return playerHearts
+            .Where(playerHeart => playerHeart.Name != currentDrawerId)
+            .All(playerHealth => (int)playerHealth.Value <= 0);
+    }
+
+
+    public async Task<(bool isCorrect, int score, bool isAllPlayersGuessed)> GuessWordAsync(Guid roomId, string playerId, string message)
     {
         var currentWord = await GetCurrentWordAsync(roomId);
-        if (currentWord == null) return (false, 0);
+        if (currentWord == null) return (isCorrect: false, score: 0, isAllPlayersGuessed: false);
 
         var isCorrect = currentWord.Equals(message, StringComparison.OrdinalIgnoreCase);
-        if (!isCorrect) return (false, 0);
+        if (!isCorrect) return (isCorrect: false, score: 0, isAllPlayersGuessed: false);
         var scoreToAdd = await CalculateScoreBasedOnTimeAsync(roomId);
         var newScore = await IncrementPlayerScoreAsync(roomId, playerId, scoreToAdd);
         await SetPlayerHeartsAsync(roomId, playerId, 0);
-        return (true, (int)newScore);
+        var isAllPlayersGuessed = await CheckAllPlayersGuessedAsync(roomId);
+        return (isCorrect: true, score: (int)newScore, isAllPlayersGuessed);
     }
 
     // ============================= ROUND TIMING METHODS =============================
