@@ -312,6 +312,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     {
         var entries = playerIds.Select(playerId => new HashEntry(playerId, DrawConstants.MaxHearts)).ToArray();
         await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), entries);
+        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), cacheExpirationTime);
     }
 
     public async Task<int> GetPlayerHeartsAsync(Guid roomId, string playerId)

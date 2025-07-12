@@ -8,7 +8,7 @@ namespace Nemui.Api.Controllers;
 
 [Authorize]
 public class DrawGameController(
-    IDrawGameService gameService, 
+    IDrawGameService gameService,
     ILogger<DrawGameController> logger
 ) : BaseApiController
 {
@@ -22,17 +22,17 @@ public class DrawGameController(
         [FromForm] CreateDrawRoom request) =>
         await ExecuteWithAuthenticationAsync(async userId =>
         {
-            // Todo: Cái này sẽ cần thêm transaction để đảm bảo tính toàn vẹn dữ liệu
+            logger.LogInformation("Creating room {RoomName} with config {Config}", request.RoomName, request.Config);
             var roomId = await gameService.CreateRoomAsync(
-                new DrawHost { HostId = userId.ToString(), HostName = GetCurrentUserName() }, 
-                request 
+                new DrawHost { HostId = userId.ToString(), HostName = GetCurrentUserName() },
+                request
             );
             if (roomId == Guid.Empty)
                 return BadRequest(ErrorResponse.Create("Failed to create draw room"));
             var result = await gameService.AddPlayerAsync(roomId, new DrawPlayer(null, userId.ToString(), GetCurrentUserName(), null));
             if (!result)
                 return BadRequest(ErrorResponse.Create("Failed to add host to draw room"));
-            return Ok(ApiResponse<Guid>.SuccessResult(roomId,"Create draw room successfully"));
+            return Ok(ApiResponse<Guid>.SuccessResult(roomId, "Create draw room successfully"));
         }, "create draw room", logger);
 
     [HttpGet("room/{roomId}")]

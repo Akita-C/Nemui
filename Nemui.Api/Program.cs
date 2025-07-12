@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Nemui.Api.Extensions;
 using Nemui.Api.Middlewares;
 using Nemui.Infrastructure.Extensions;
@@ -9,14 +10,17 @@ LoggingExtensions.ConfigureLogging();
 try
 {
     Log.Information("Starting Nemui API application");
-    
+
     var builder = WebApplication.CreateBuilder(args);
-    
+
     // Configure host
     builder.Host.UseSerilog();
-    
+
     // Add services to the container
-    builder.Services.AddControllers();
+    builder.Services.AddControllers().AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    });
     builder.Services.AddDatabase(builder.Configuration);
     builder.Services.AddConfigurations(builder.Configuration);
     builder.Services.AddCaching(builder.Configuration);
@@ -30,10 +34,10 @@ try
     builder.Services.AddSignalr();
 
     var app = builder.Build();
-    
+
     // Configure the HTTP request pipeline
     app.UseCustomLogging();
-    
+
     if (app.Environment.IsDevelopment())
     {
         app.MapSeedEndpoints();
@@ -44,7 +48,7 @@ try
             c.RoutePrefix = string.Empty; // Serve Swagger at root
         });
     }
-    
+
     app.UseHttpsRedirection();
     app.UseCors("AllowSpecificOrigins");
     app.UseRateLimiter();
