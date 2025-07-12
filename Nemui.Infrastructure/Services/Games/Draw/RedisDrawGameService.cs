@@ -221,7 +221,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
             new (GameSessionHashKey.CurrentTurnIndex, newTurnIndex.ToString()),
             new (GameSessionHashKey.CurrentDrawerId, currentDrawerId),
             new (GameSessionHashKey.CurrentWord, word),
-            new (GameSessionHashKey.RoundStartTime, DateTime.UtcNow.ToString("O")),
+            new (GameSessionHashKey.RoundStartTime, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
         };
 
         var tasks = new List<Task>
@@ -368,19 +368,17 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
 
     public async Task SetRoundStartTimeAsync(Guid roomId, DateTimeOffset startTime)
     {
-        var key = GetRoomStartTimeKey(roomId);
-        await database.StringSetAsync(key, startTime.ToUnixTimeSeconds());
-        await database.KeyExpireAsync(key, cacheExpirationTime);
+        var updateFields = new HashEntry[]
+        {
+            new (GameSessionHashKey.RoundStartTime, startTime.ToUnixTimeSeconds()),
+        };
+        await database.HashSetAsync(GetRoomGameKey(roomId), updateFields);
     }
 
     public async Task<DateTimeOffset?> GetRoundStartTimeAsync(Guid roomId)
     {
-        var key = GetRoomStartTimeKey(roomId);
-        var timestamp = await database.StringGetAsync(key);
-
-        if (!timestamp.HasValue) return null;
-
-        return DateTimeOffset.FromUnixTimeSeconds((long)timestamp);
+        var roundStartTime = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.RoundStartTime);
+        return roundStartTime.HasValue ? DateTimeOffset.FromUnixTimeSeconds((long)roundStartTime) : null;
     }
 
     // ============================= KEY GENERATION METHODS =============================
@@ -392,7 +390,6 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     public string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
     public string GetRoomPlayerHeartsKey(Guid roomId) => $"room:{roomId}:hearts";
     public string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
-    public string GetRoomStartTimeKey(Guid roomId) => $"room:{roomId}:start_time";
 
     private async Task<int> CalculateScoreBasedOnTimeAsync(Guid roomId)
     {

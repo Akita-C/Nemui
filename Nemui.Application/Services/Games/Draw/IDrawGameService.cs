@@ -65,5 +65,4 @@ public interface IDrawGameService
     string GetRoomScoresKey(Guid roomId) => $"room:{roomId}:scores";
     string GetRoomPlayerHeartsKey(Guid roomId) => $"room:{roomId}:hearts";
     string GetRoomWordPoolKey(Guid roomId) => $"room:{roomId}:wordpool";
-    string GetRoomStartTimeKey(Guid roomId) => $"room:{roomId}:start_time";
 }
