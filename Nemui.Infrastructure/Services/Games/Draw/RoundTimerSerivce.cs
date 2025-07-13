@@ -4,19 +4,41 @@ using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Games.Draw;
 using Nemui.Shared.Enums;
 
-public class RoundTimerService(
-    IDrawGameService gameService,
-    IWordRevealService wordRevealService,
-    ILogger<RoundTimerService> logger
-) : IRoundTimerService
+namespace Nemui.Infrastructure.Services.Games.Draw;
+
+public class RoundTimerService : IRoundTimerService
 {
     private readonly ConcurrentDictionary<Guid, GameRoundManager> activeRounds = new();
+    private readonly PeriodicTimer? cleanupTimer;
+    private readonly Task? cleanupTask;
+    private readonly TimeSpan cleanupInterval = TimeSpan.FromMinutes(2); // Todo: Make configurable
+    private readonly TimeSpan finishedRoundTimeout = TimeSpan.FromMinutes(5); // Todo: Make configurable
+
+    private readonly IDrawGameService gameService;
+    private readonly IWordRevealService wordRevealService;
+    private readonly ILogger<RoundTimerService> logger;
+
+
     private bool isDisposed = false;
 
     public event Func<RoundStartedEvent, Task>? OnRoundStarted;
     public event Func<EndedGameEvent, Task>? OnEndedGame;
     public event Func<PhaseChangedEvent, Task>? OnPhaseChanged;
     public event Func<WordRevealedEvent, Task>? OnWordRevealed;
+
+    public RoundTimerService(
+        IDrawGameService gameService,
+        IWordRevealService wordRevealService,
+        ILogger<RoundTimerService> logger
+    )
+    {
+        this.gameService = gameService;
+        this.wordRevealService = wordRevealService;
+        this.logger = logger;
+
+        cleanupTimer = new PeriodicTimer(cleanupInterval);
+        cleanupTask = StartCleanupTimerAsync();
+    }
 
     public async Task StartRoundAsync(Guid roomId, int totalRounds, DrawRoomConfig config)
     {
@@ -101,12 +123,80 @@ public class RoundTimerService(
         return null;
     }
 
+    private async Task StartCleanupTimerAsync()
+    {
+        try
+        {
+            while (await cleanupTimer!.WaitForNextTickAsync())
+            {
+                if (isDisposed) break;
+
+                try
+                {
+                    await CleanupFinishedRoundsAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error during cleanup finished rounds");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogDebug("Cleanup task cancelled");
+        }
+    }
+
+    private async Task CleanupFinishedRoundsAsync()
+    {
+        var finishedRooms = new List<Guid>();
+
+        foreach (var kvp in activeRounds)
+        {
+            var gameManager = kvp.Value;
+            if (gameManager.IsFinished &&
+                gameManager.EndGameTimestamp.HasValue &&
+                DateTimeOffset.UtcNow - gameManager.EndGameTimestamp.Value > finishedRoundTimeout)
+            {
+                finishedRooms.Add(kvp.Key);
+            }
+        }
+
+        foreach (var roomId in finishedRooms)
+        {
+            if (activeRounds.TryRemove(roomId, out var gameManager))
+            {
+                await gameManager.StopAsync();
+                gameManager.Dispose();
+                logger.LogDebug("Cleaned up finished game round for room {RoomId}", roomId);
+            }
+        }
+
+        if (finishedRooms.Count > 0)
+        {
+            logger.LogDebug("Cleaned up {Count} finished game rounds", finishedRooms.Count);
+        }
+    }
+
     public async void Dispose()
     {
         if (isDisposed) return;
 
         logger.LogDebug("Disposing RoundTimerService...");
         isDisposed = true;
+
+        cleanupTimer?.Dispose();
+        if (cleanupTask != null)
+        {
+            try
+            {
+                await cleanupTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+        }
 
         var stopTasks = activeRounds.Values.Select(manager => manager.StopAsync());
         await Task.WhenAll(stopTasks);
@@ -137,6 +227,8 @@ public class GameRoundManager : IDisposable
     private readonly SemaphoreSlim stateLock = new(1, 1);
     private readonly CancellationTokenSource globalCts = new();
     private DrawGamePhase currentPhase = DrawGamePhase.Waiting;
+    public DateTimeOffset? EndGameTimestamp { get; private set; }
+    public bool IsFinished => currentPhase == DrawGamePhase.Finished;
 
     // Current Phase Management
     private PhaseRunner? currentPhaseRunner;
@@ -348,6 +440,7 @@ public class GameRoundManager : IDisposable
             if (!nextPhase.HasValue)
             {
                 logger.LogDebug("Game ended for room {RoomId}", roomId);
+                EndGameTimestamp = DateTimeOffset.UtcNow;
                 currentPhase = DrawGamePhase.Finished;
                 await CleanupCurrentPhaseAsync();
                 var endedEvent = new EndedGameEvent { RoomId = roomId };
@@ -519,7 +612,7 @@ public class PhaseRunner : IDisposable
         this.durationSeconds = durationSeconds;
         this.cancellationToken = cancellationToken;
         this.logger = logger;
-        this.startTime = DateTimeOffset.UtcNow;
+        startTime = DateTimeOffset.UtcNow;
     }
 
     public async Task StartAsync()
@@ -625,7 +718,7 @@ public class WordRevealRunner : IDisposable
         this.wordRevealService = wordRevealService;
         this.cancellationToken = cancellationToken;
         this.logger = logger;
-        this.startTime = DateTimeOffset.UtcNow;
+        startTime = DateTimeOffset.UtcNow;
     }
 
     public async Task StartAsync()

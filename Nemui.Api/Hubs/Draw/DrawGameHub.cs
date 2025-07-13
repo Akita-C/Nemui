@@ -90,18 +90,6 @@ public class DrawGameHub(
         await Clients.GroupExcept(gameService.GetRoomMetadataKey(roomId), Context.ConnectionId).DrawActionReceived(action);
     }
 
-    // public async Task SendLiveDrawAction(Guid roomId, DrawAction action) 
-    // {
-    //     var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
-    //     var (isPlayerInRoom, _) = await gameService.IsPlayerInRoomAsync(currentUserService.UserId!, roomId);
-    //     if (!isRoomExists || !isPlayerInRoom)
-    //     {
-    //         logger.LogWarning("Invalid live draw action attempt for room {RoomId} by user {UserId}", roomId, currentUserService.UserId);
-    //         throw new HubException("Room not found or user is not in room.");
-    //     }
-    //     await Clients.GroupExcept(gameService.GetRoomKey(roomId), Context.ConnectionId).LiveDrawActionReceived(action);
-    // }
-
     public async Task StartRound(Guid roomId)
     {
         var room = await gameService.GetRoomAsync(roomId);
@@ -155,5 +143,21 @@ public class DrawGameHub(
             ]);
         }
         if (isAllPlayersGuessed) await roundTimerService.ForceRevealPhaseAsync(roomId);
+    }
+
+    public async Task RequestRematch(Guid roomId, DrawRoomConfig? newConfig = null)
+    {
+        var room = await gameService.GetRoomAsync(roomId);
+        if (room?.Host.HostId != currentUserService.UserId)
+            throw new HubException("Only host can request rematch.");
+
+        var newRoomId = await gameService.CreateRoomAsync(room.Host, new CreateDrawRoom
+        {
+            RoomName = $"{room.RoomName} Rematch",
+            Config = newConfig ?? room.Config
+        });
+
+        await Clients.Group(gameService.GetRoomMetadataKey(roomId))
+            .RematchRoomCreated(newRoomId, room.Host.HostName, newConfig ?? room.Config);
     }
 }
