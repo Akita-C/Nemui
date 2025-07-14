@@ -147,17 +147,17 @@ public class DrawGameHub(
 
     public async Task RequestRematch(Guid roomId, DrawRoomConfig? newConfig = null)
     {
-        var room = await gameService.GetRoomAsync(roomId);
+        var room = await gameService.GetRoomAsync(roomId) ?? throw new HubException("Room not found or already deleted.");
         if (room?.Host.HostId != currentUserService.UserId)
             throw new HubException("Only host can request rematch.");
 
-        var newRoomId = await gameService.CreateRoomAsync(room.Host, new CreateDrawRoom
+        var newRoomId = await gameService.CreateRoomAsync(room!.Host, new CreateDrawRoom
         {
             RoomName = $"{room.RoomName} Rematch",
             Config = newConfig ?? room.Config
         });
 
         await Clients.Group(gameService.GetRoomMetadataKey(roomId))
-            .RematchRoomCreated(newRoomId, room.Host.HostName, newConfig ?? room.Config);
+            .RematchRoomCreated(newRoomId);
     }
 }

@@ -19,5 +19,5 @@ public interface IDrawGameClient
     Task WordRevealed(WordRevealedEvent wordRevealedEvent);
     Task GuessMessageWrongReceived(string playerId, string message);
     Task GuessMessageCorrectReceived(string playerId, int newScore);
-    Task RematchRoomCreated(Guid newRoomId, string hostName, DrawRoomConfig config);
+    Task RematchRoomCreated(Guid newRoomId);
 }
