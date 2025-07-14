@@ -19,10 +19,12 @@ public class DrawGameHub(
     {
         var isRoomExists = await gameService.IsRoomExistsAsync(roomId);
         var isRoomFull = await gameService.IsRoomFullAsync(roomId);
-        if (!isRoomExists || isRoomFull)
+        var currentPhase = await gameService.GetCurrentPhaseAsync(roomId);
+        if (!isRoomExists || isRoomFull || currentPhase != DrawGamePhase.Waiting)
         {
             logger.LogWarning("Attempted to join non-existent room {RoomId}", roomId);
-            throw new HubException("Room not found or configuration is missing.");
+            await Clients.Caller.NotifyAccessDenied();
+            return;
         }
         logger.LogInformation("User {UserId} joined room {RoomId}", request.PlayerId, roomId);
         await Groups.AddToGroupAsync(Context.ConnectionId, gameService.GetRoomMetadataKey(roomId));

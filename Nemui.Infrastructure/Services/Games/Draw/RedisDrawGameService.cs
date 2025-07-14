@@ -11,7 +11,7 @@ namespace Nemui.Infrastructure.Services.Games.Draw;
 
 public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameService> logger) : IDrawGameService
 {
-    private readonly TimeSpan cacheExpirationTime = TimeSpan.FromHours(1);
+    private readonly TimeSpan cacheExpirationTime = TimeSpan.FromHours(1); // Todo: Làm cái này sống lâu hơn cái thời gian chơi
 
     // ============================= ROOM METHODS =============================
 
@@ -38,6 +38,11 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         };
 
         await database.StringSetAsync(GetRoomMetadataKey(room.RoomId), JsonSerializer.Serialize(room), cacheExpirationTime);
+        await database.HashSetAsync(GetRoomGameKey(room.RoomId),
+        [
+            new (GameSessionHashKey.Phase, DrawGamePhase.Waiting.ToString()),
+        ]);
+        await database.KeyExpireAsync(GetRoomGameKey(room.RoomId), cacheExpirationTime);
         return room.RoomId;
     }
 

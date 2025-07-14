@@ -4,6 +4,7 @@ namespace Nemui.Api.Hubs.Draw;
 
 public interface IDrawGameClient
 {
+    Task NotifyAccessDenied();
     Task JoinRoom(DrawPlayer player);
     Task LeaveRoom();
     Task UserJoined(DrawPlayer player);
