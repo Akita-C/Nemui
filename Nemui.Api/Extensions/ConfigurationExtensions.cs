@@ -11,7 +11,8 @@ public static class ConfigurationExtensions
         services.Configure<RedisSettings>(configuration.GetSection(RedisSettings.SectionName));
         services.Configure<CloudinarySettings>(configuration.GetSection(CloudinarySettings.SectionName));
         services.Configure<AdminSettings>(configuration.GetSection(AdminSettings.SectionName));
-        
+        services.Configure<RoundTimerSettings>(configuration.GetSection(RoundTimerSettings.SectionName));
+
         return services;
     }
-} 
+}

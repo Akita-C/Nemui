@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Nemui.Application.Services.Games.Draw;
+using Nemui.Infrastructure.Configurations;
 using Nemui.Shared.DTOs.Games.Draw;
 using Nemui.Shared.Enums;
 
@@ -11,8 +13,8 @@ public class RoundTimerService : IRoundTimerService
     private readonly ConcurrentDictionary<Guid, GameRoundManager> activeRounds = new();
     private readonly PeriodicTimer? cleanupTimer;
     private readonly Task? cleanupTask;
-    private readonly TimeSpan cleanupInterval = TimeSpan.FromMinutes(2); // Todo: Make configurable
-    private readonly TimeSpan finishedRoundTimeout = TimeSpan.FromMinutes(5); // Todo: Make configurable
+    private readonly TimeSpan cleanupInterval;
+    private readonly TimeSpan finishedRoundTimeout;
 
     private readonly IDrawGameService gameService;
     private readonly IWordRevealService wordRevealService;
@@ -29,12 +31,16 @@ public class RoundTimerService : IRoundTimerService
     public RoundTimerService(
         IDrawGameService gameService,
         IWordRevealService wordRevealService,
-        ILogger<RoundTimerService> logger
+        ILogger<RoundTimerService> logger,
+        IOptions<RoundTimerSettings> roundTimerSettings
     )
     {
         this.gameService = gameService;
         this.wordRevealService = wordRevealService;
         this.logger = logger;
+
+        cleanupInterval = roundTimerSettings.Value.CleanupIntervalMinutes;
+        finishedRoundTimeout = roundTimerSettings.Value.FinishedRoundTimeoutMinutes;
 
         cleanupTimer = new PeriodicTimer(cleanupInterval);
         cleanupTask = StartCleanupTimerAsync();
