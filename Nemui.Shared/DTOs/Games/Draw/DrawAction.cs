@@ -23,11 +23,5 @@ public enum DrawActionType
     Shape,
     Clear,
     Undo,
-    Redo,
-    LiveStrokeStart,
-    LiveStrokeMove,
-    LiveStrokeEnd,
-    LiveShapeStart,
-    LiveShapeMove,
-    LiveShapeEnd,
+    Redo
 }
