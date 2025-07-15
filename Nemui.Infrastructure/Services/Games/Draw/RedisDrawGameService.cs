@@ -11,8 +11,6 @@ namespace Nemui.Infrastructure.Services.Games.Draw;
 
 public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameService> logger) : IDrawGameService
 {
-    private readonly TimeSpan cacheExpirationTime = TimeSpan.FromHours(1); // Todo: Làm cái này sống lâu hơn cái thời gian chơi
-
     // ============================= ROOM METHODS =============================
 
     public async Task<DrawRoom?> GetRoomAsync(Guid roomId)
@@ -37,12 +35,13 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
             Config = createRoom.Config
         };
 
-        await database.StringSetAsync(GetRoomMetadataKey(room.RoomId), JsonSerializer.Serialize(room), cacheExpirationTime);
+        await database.StringSetAsync(GetRoomMetadataKey(room.RoomId), JsonSerializer.Serialize(room), CalculateGameExpirationTime(createRoom.Config));
         await database.HashSetAsync(GetRoomGameKey(room.RoomId),
         [
             new (GameSessionHashKey.Phase, DrawGamePhase.Waiting.ToString()),
+            new (GameSessionHashKey.GameExpirationTime, CalculateGameExpirationTime(createRoom.Config).TotalSeconds.ToString()),
         ]);
-        await database.KeyExpireAsync(GetRoomGameKey(room.RoomId), cacheExpirationTime);
+        await database.KeyExpireAsync(GetRoomGameKey(room.RoomId), CalculateGameExpirationTime(createRoom.Config));
         return room.RoomId;
     }
 
@@ -86,7 +85,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         }
 
         var result = isRoomExists && await database.SetAddAsync(GetRoomPlayerKey(roomId), JsonSerializer.Serialize(player));
-        if (result) await database.KeyExpireAsync(GetRoomPlayerKey(roomId), cacheExpirationTime);
+        if (result) await database.KeyExpireAsync(GetRoomPlayerKey(roomId), await GetGameExpirationTimeAsync(roomId));
         return result;
     }
 
@@ -131,7 +130,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         var key = GetRoomWordPoolKey(roomId);
         var words = WordGenerator.GenerateRandomWords(wordCount);
         await database.SetAddAsync(key, [.. words.Select(w => (RedisValue)w)]);
-        await database.KeyExpireAsync(key, cacheExpirationTime);
+        await database.KeyExpireAsync(key, await GetGameExpirationTimeAsync(roomId));
     }
 
     public async Task<string?> ConsumeRandomWordAsync(Guid roomId)
@@ -192,13 +191,13 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         var task = new List<Task>
         {
             transaction.HashSetAsync(GetRoomGameKey(roomId), gameFields),
-            transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime),
+            transaction.KeyExpireAsync(GetRoomGameKey(roomId), await GetGameExpirationTimeAsync(roomId)),
             transaction.ListRightPushAsync(GetRoomTurnOrderKey(roomId), [.. playerIds.Select(id => (RedisValue)id)]),
-            transaction.KeyExpireAsync(GetRoomTurnOrderKey(roomId), cacheExpirationTime),
+            transaction.KeyExpireAsync(GetRoomTurnOrderKey(roomId), await GetGameExpirationTimeAsync(roomId)),
         };
 
         task.AddRange(playerIds.Select(playerId => transaction.HashSetAsync(GetRoomScoresKey(roomId), playerId, 0)));
-        task.Add(transaction.KeyExpireAsync(GetRoomScoresKey(roomId), cacheExpirationTime));
+        task.Add(transaction.KeyExpireAsync(GetRoomScoresKey(roomId), await GetGameExpirationTimeAsync(roomId)));
 
         var result = await transaction.ExecuteAsync();
         if (!result) return false;
@@ -232,7 +231,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         var tasks = new List<Task>
         {
             transaction.HashSetAsync(GetRoomGameKey(roomId), updateFields),
-            transaction.KeyExpireAsync(GetRoomGameKey(roomId), cacheExpirationTime),
+            transaction.KeyExpireAsync(GetRoomGameKey(roomId), await GetGameExpirationTimeAsync(roomId)),
         };
 
         var result = await transaction.ExecuteAsync();
@@ -283,6 +282,12 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
         return Enum.Parse<DrawGamePhase>(phase.HasValue ? phase.ToString() : "waiting");
     }
 
+    public async Task<TimeSpan> GetGameExpirationTimeAsync(Guid roomId)
+    {
+        var gameExpirationTime = await database.HashGetAsync(GetRoomGameKey(roomId), GameSessionHashKey.GameExpirationTime);
+        return gameExpirationTime.HasValue ? TimeSpan.FromSeconds((long)gameExpirationTime) : TimeSpan.Zero;
+    }
+
     // ============================= PLAYER SCORES METHODS =============================
     public async Task<int> GetPlayerScoreAsync(Guid roomId, string playerId)
     {
@@ -299,14 +304,14 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     public async Task<bool> SetPlayerScoreAsync(Guid roomId, string playerId, int score)
     {
         var result = await database.HashSetAsync(GetRoomScoresKey(roomId), playerId, score);
-        await database.KeyExpireAsync(GetRoomScoresKey(roomId), cacheExpirationTime);
+        await database.KeyExpireAsync(GetRoomScoresKey(roomId), await GetGameExpirationTimeAsync(roomId));
         return result;
     }
 
     public async Task<long> IncrementPlayerScoreAsync(Guid roomId, string playerId, int increment)
     {
         var newScore = await database.HashIncrementAsync(GetRoomScoresKey(roomId), playerId, increment);
-        await database.KeyExpireAsync(GetRoomScoresKey(roomId), cacheExpirationTime);
+        await database.KeyExpireAsync(GetRoomScoresKey(roomId), await GetGameExpirationTimeAsync(roomId));
         return newScore;
     }
 
@@ -317,7 +322,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     {
         var entries = playerIds.Select(playerId => new HashEntry(playerId, DrawConstants.MaxHearts)).ToArray();
         await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), entries);
-        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), cacheExpirationTime);
+        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), await GetGameExpirationTimeAsync(roomId));
     }
 
     public async Task<int> GetPlayerHeartsAsync(Guid roomId, string playerId)
@@ -335,7 +340,7 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
     public async Task<bool> SetPlayerHeartsAsync(Guid roomId, string playerId, int hearts)
     {
         var result = await database.HashSetAsync(GetRoomPlayerHeartsKey(roomId), playerId, hearts);
-        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), cacheExpirationTime);
+        await database.KeyExpireAsync(GetRoomPlayerHeartsKey(roomId), await GetGameExpirationTimeAsync(roomId));
         return result;
     }
 
@@ -433,6 +438,14 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
             return 1;
         }
     }
+
+    // 100% Need to improve this, but it's a good start
+    private static TimeSpan CalculateGameExpirationTime(DrawRoomConfig config)
+    {
+        var totalRounds = config.MaxRoundPerPlayers * config.MaxPlayers;
+        var totalTime = totalRounds * (config.DrawingDurationSeconds + config.GuessingDurationSeconds + config.RevealDurationSeconds);
+        return TimeSpan.FromSeconds(totalTime) + TimeSpan.FromMinutes(5); // 5 minutes for players in room do other stuff
+    }
 }
 
 public static class GameSessionHashKey
@@ -446,4 +459,5 @@ public static class GameSessionHashKey
     public const string CurrentTurnIndex = "current_turn_index";
     public const string SessionStartTime = "session_start_time";
     public const string RoundStartTime = "round_start_time";
+    public const string GameExpirationTime = "game_expiration_time";
 }

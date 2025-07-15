@@ -23,13 +23,13 @@ public interface IDrawGameService
     // Game session methods
     Task<DrawGameSession?> GetGameSessionAsync(Guid roomId);
     Task<bool> InitializeGameSessionAsync(Guid roomId, List<string> playerIds, int totalRounds);
-    // Returns the current drawer and the word for the round
     Task<(string?, string?, int)> StartNextRoundAsync(Guid roomId);
     Task<bool> UpdateGamePhaseAsync(Guid roomId, DrawGamePhase phase);
     Task<string?> GetCurrentDrawerAsync(Guid roomId);
     Task<string?> GetCurrentWordAsync(Guid roomId);
     Task<int?> GetCurrentRoundAsync(Guid roomId);
     Task<DrawGamePhase> GetCurrentPhaseAsync(Guid roomId);
+    Task<TimeSpan> GetGameExpirationTimeAsync(Guid roomId);
 
     // Word pool methods
     Task InitializeWordPoolAsync(Guid roomId, int wordCount);
