@@ -12,10 +12,10 @@ public class UserService : IUserService
     private readonly IPasswordService _passwordService;
     private readonly IUserCacheService _userCacheService;
     private readonly IImageService _imageService;
-    
+
     public UserService(
         IUnitOfWork unitOfWork,
-        IPasswordService passwordService, 
+        IPasswordService passwordService,
         IUserCacheService userCacheService, IImageService imageService)
     {
         _unitOfWork = unitOfWork;
@@ -23,12 +23,12 @@ public class UserService : IUserService
         _userCacheService = userCacheService;
         _imageService = imageService;
     }
-    
+
     public async Task<UserProfileDto?> GetUserProfileAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var cachedProfile = await _userCacheService.GetUserProfileAsync(userId, cancellationToken);
         if (cachedProfile != null) return cachedProfile;
-        
+
         var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
         if (user == null) return null;
         var profile = new UserProfileDto
@@ -55,9 +55,9 @@ public class UserService : IUserService
                     "c_fill,w_500,h_500,q_auto,f_auto", cancellationToken)
             };
         }
-        
+
         await _userCacheService.SetUserProfileAsync(userId, profile, cancellationToken);
-        
+
         return profile;
     }
 
@@ -76,7 +76,7 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt.DateTime,
             LastLoginAt = user.LastLoginAt
         };
-        
+
         if (!string.IsNullOrEmpty(user.AvatarPublicId))
         {
             profile.AvatarTransformations = new Dictionary<string, string>
@@ -86,7 +86,7 @@ public class UserService : IUserService
                 ["large"] = await _imageService.GetImageUrlWithTransformationAsync(user.AvatarPublicId, "c_fill,w_500,h_500,q_auto,f_auto", cancellationToken)
             };
         }
-        
+
         return profile;
     }
 
@@ -97,12 +97,12 @@ public class UserService : IUserService
         if (user == null) return false;
 
         user.Name = request.Name.Trim();
-        
+
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
-        
+
         return true;
     }
 
@@ -124,17 +124,17 @@ public class UserService : IUserService
 
         // Update password
         user.PasswordHash = _passwordService.HashPassword(request.NewPassword);
-        
+
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
-        
+
         // Revoke all refresh tokens for security
         await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(userId, cancellationToken);
-        
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        
+
         // Invalidate all user cache data for security
         await _userCacheService.InvalidateAllUserDataAsync(userId, cancellationToken);
-        
+
         return true;
     }
 
@@ -144,17 +144,17 @@ public class UserService : IUserService
         if (user == null) return false;
 
         user.IsActive = false;
-        
+
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
-        
+
         // Revoke all refresh tokens
         await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(userId, cancellationToken);
-        
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        
+
         // Invalidate all user cache data
         await _userCacheService.InvalidateAllUserDataAsync(userId, cancellationToken);
-        
+
         return true;
     }
 
@@ -164,13 +164,13 @@ public class UserService : IUserService
         if (user == null) return false;
 
         user.IsActive = true;
-        
+
         await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        
+
         // Invalidate cache to refresh data
         await _userCacheService.InvalidateUserProfileAsync(userId, cancellationToken);
-        
+
         return true;
     }
 
@@ -218,7 +218,7 @@ public class UserService : IUserService
 
         // Delete from Cloudinary
         var deleted = await _imageService.DeleteImageAsync(user.AvatarPublicId, cancellationToken);
-        
+
         if (deleted)
         {
             // Clear avatar info from database

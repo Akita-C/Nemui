@@ -15,14 +15,10 @@ public static class ApplicationServicesExtensions
     {
         // Repository pattern
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-        services.AddScoped<IQuizRepository, QuizRepository>();
-        services.AddScoped<IQuestionRepository, QuestionRepository>();
 
         // Application services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
-        services.AddScoped<IQuizService, QuizService>();
-        services.AddScoped<IQuestionService, QuestionService>();
 
         // Infrastructure services
         services.AddScoped<IJwtService, JwtService>();
