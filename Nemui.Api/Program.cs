@@ -32,6 +32,7 @@ try
     builder.Services.AddCustomRateLimiting();
     builder.Services.AddSeeders();
     builder.Services.AddSignalr();
+    builder.Services.AddAIServices();
 
     var app = builder.Build();
 

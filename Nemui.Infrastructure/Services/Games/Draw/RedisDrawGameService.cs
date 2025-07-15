@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Nemui.Application.Services;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.Constants;
 using Nemui.Shared.DTOs.Games.Draw;
@@ -9,7 +10,7 @@ using StackExchange.Redis;
 
 namespace Nemui.Infrastructure.Services.Games.Draw;
 
-public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameService> logger) : IDrawGameService
+public class RedisDrawGameService(IDatabase database, IAIService aiService, ILogger<RedisDrawGameService> logger) : IDrawGameService
 {
     // ============================= ROOM METHODS =============================
 
@@ -27,10 +28,13 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
 
     public async Task<Guid> CreateRoomAsync(DrawHost host, CreateDrawRoom createRoom)
     {
+        logger.LogInformation("Creating room {RoomName} with theme {Theme}", createRoom.RoomName, createRoom.Theme);
+
         var room = new DrawRoom
         {
             RoomId = Guid.NewGuid(),
             RoomName = createRoom.RoomName,
+            Theme = createRoom.Theme,
             Host = host,
             Config = createRoom.Config
         };
@@ -127,8 +131,9 @@ public class RedisDrawGameService(IDatabase database, ILogger<RedisDrawGameServi
 
     public async Task InitializeWordPoolAsync(Guid roomId, int wordCount)
     {
+        var room = await GetRoomAsync(roomId);
         var key = GetRoomWordPoolKey(roomId);
-        var words = WordGenerator.GenerateRandomWords(wordCount);
+        var words = (await aiService.GenerateWords<GenerateWordsResponse>(room?.Theme ?? throw new InvalidOperationException("Room theme is not set"), wordCount)).Words;
         await database.SetAddAsync(key, [.. words.Select(w => (RedisValue)w)]);
         await database.KeyExpireAsync(key, await GetGameExpirationTimeAsync(roomId));
     }

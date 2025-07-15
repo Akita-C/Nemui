@@ -9,6 +9,8 @@ public record DrawRoom
     public Guid RoomId { get; set; }
     [Key("roomName")]
     public string RoomName { get; set; } = string.Empty;
+    [Key("theme")]
+    public string Theme { get; set; } = string.Empty;
     [Key("host")]
     public DrawHost Host { get; set; } = new();
     [Key("config")]

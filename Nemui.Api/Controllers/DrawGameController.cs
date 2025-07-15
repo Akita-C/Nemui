@@ -22,7 +22,6 @@ public class DrawGameController(
         [FromForm] CreateDrawRoom request) =>
         await ExecuteWithAuthenticationAsync(async userId =>
         {
-            logger.LogInformation("Creating room {RoomName} with config {Config}", request.RoomName, request.Config);
             var roomId = await gameService.CreateRoomAsync(
                 new DrawHost { HostId = userId.ToString(), HostName = GetCurrentUserName() },
                 request

@@ -17,26 +17,26 @@ public static class ApplicationServicesExtensions
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IQuizRepository, QuizRepository>();
         services.AddScoped<IQuestionRepository, QuestionRepository>();
-        
+
         // Application services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IQuizService, QuizService>();
         services.AddScoped<IQuestionService, QuestionService>();
-        
+
         // Infrastructure services
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IJwtBlacklistService, JwtBlacklistService>();
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IImageService, CloudinaryImageService>();
-        
+
         // Validation
         services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
-        
+
         // HTTP Context
         services.AddHttpContextAccessor();
-        
+
         return services;
     }
-} 
+}

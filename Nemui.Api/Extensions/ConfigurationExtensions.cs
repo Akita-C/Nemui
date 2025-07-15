@@ -12,6 +12,7 @@ public static class ConfigurationExtensions
         services.Configure<CloudinarySettings>(configuration.GetSection(CloudinarySettings.SectionName));
         services.Configure<AdminSettings>(configuration.GetSection(AdminSettings.SectionName));
         services.Configure<RoundTimerSettings>(configuration.GetSection(RoundTimerSettings.SectionName));
+        services.Configure<AISettings>(configuration.GetSection(AISettings.SectionName));
 
         return services;
     }
