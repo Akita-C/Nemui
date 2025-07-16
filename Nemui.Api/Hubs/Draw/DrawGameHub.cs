@@ -147,7 +147,7 @@ public class DrawGameHub(
         if (isAllPlayersGuessed) await roundTimerService.ForceRevealPhaseAsync(roomId);
     }
 
-    public async Task RequestRematch(Guid roomId, DrawRoomConfig? newConfig = null)
+    public async Task RequestRematch(Guid roomId, string? theme, DrawRoomConfig? newConfig = null)
     {
         var room = await gameService.GetRoomAsync(roomId) ?? throw new HubException("Room not found or already deleted.");
         if (room?.Host.HostId != currentUserService.UserId)
@@ -156,6 +156,7 @@ public class DrawGameHub(
         var newRoomId = await gameService.CreateRoomAsync(room!.Host, new CreateDrawRoom
         {
             RoomName = $"{room.RoomName} Rematch",
+            Theme = theme ?? room.Theme,
             Config = newConfig ?? room.Config
         });
 
