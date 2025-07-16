@@ -13,15 +13,14 @@ public class AuthController : BaseApiController
 {
     private readonly IAuthService _authService;
     private readonly ILogger<AuthController> _logger;
-    
+
     public AuthController(IAuthService authService, ILogger<AuthController> logger)
     {
         _authService = authService;
         _logger = logger;
     }
-    
+
     [HttpPost("login")]
-    [EnableRateLimiting("AuthPolicy")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
@@ -31,9 +30,9 @@ public class AuthController : BaseApiController
         try
         {
             var result = await _authService.LoginAsync(request, cancellationToken);
-            
+
             _logger.LogInformation("User {Email} logged in successfully", request.Email);
-            
+
             return Ok(ApiResponse<AuthResponse>.SuccessResult(result, "Login successful"));
         }
         catch (UnauthorizedAccessException ex)
@@ -47,7 +46,7 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during login"));
         }
     }
-    
+
     [HttpPost("register")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -58,9 +57,9 @@ public class AuthController : BaseApiController
         try
         {
             var result = await _authService.RegisterAsync(request, cancellationToken);
-            
+
             _logger.LogInformation("User {Email} registered successfully", request.Email);
-            
+
             return Ok(ApiResponse<AuthResponse>.SuccessResult(result, "Registration successful"));
         }
         catch (InvalidOperationException ex)
@@ -74,7 +73,7 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during registration"));
         }
     }
-    
+
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -85,9 +84,9 @@ public class AuthController : BaseApiController
         try
         {
             var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
-            
+
             _logger.LogInformation("Token refreshed successfully");
-            
+
             return Ok(ApiResponse<AuthResponse>.SuccessResult(result, "Token refreshed successfully"));
         }
         catch (UnauthorizedAccessException ex)
@@ -101,7 +100,7 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during token refresh"));
         }
     }
-    
+
     [HttpPost("logout")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -111,11 +110,11 @@ public class AuthController : BaseApiController
         try
         {
             if (!string.IsNullOrWhiteSpace(request.AccessToken)) await _authService.BlacklistAccessTokenAsync(request.AccessToken, cancellationToken);
-            
+
             var result = await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
-            
+
             _logger.LogInformation("User logged out successfully");
-            
+
             return Ok(ApiResponse<bool>.SuccessResult(result, "Logout successful"));
         }
         catch (Exception ex)
@@ -124,7 +123,7 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during logout"));
         }
     }
-    
+
     [HttpPost("revoke")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -135,9 +134,9 @@ public class AuthController : BaseApiController
         try
         {
             var result = await _authService.RevokeTokenAsync(request.RefreshToken, cancellationToken);
-            
+
             _logger.LogInformation("Token revoked successfully");
-            
+
             return Ok(ApiResponse<bool>.SuccessResult(result, "Token revoked successfully"));
         }
         catch (Exception ex)
@@ -146,7 +145,7 @@ public class AuthController : BaseApiController
             return StatusCode(500, ErrorResponse.Create("An error occurred during token revocation"));
         }
     }
-    
+
     [HttpPost("revoke-all")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -158,9 +157,9 @@ public class AuthController : BaseApiController
         {
             var userId = GetCurrentUserId();
             var result = await _authService.RevokeAllUserTokensAsync(userId, cancellationToken);
-            
+
             _logger.LogInformation("All tokens revoked for user {UserId}", userId);
-            
+
             return Ok(ApiResponse<bool>.SuccessResult(result, "All tokens revoked successfully"));
         }
         catch (UnauthorizedAccessException ex)

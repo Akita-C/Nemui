@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Nemui.Application.Services.Games.Draw;
 using Nemui.Shared.DTOs.Common;
 using Nemui.Shared.DTOs.Games.Draw;
@@ -13,6 +14,7 @@ public class DrawGameController(
 ) : BaseApiController
 {
     [HttpPost("create")]
+    [EnableRateLimiting("DrawGamePolicy")]
     [ProducesResponseType(typeof(ApiResponse<Guid>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]

@@ -10,7 +10,6 @@ public static class RateLimitingExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Global rate limiter
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
@@ -18,54 +17,27 @@ public static class RateLimitingExtensions
                     {
                         AutoReplenishment = true,
                         PermitLimit = 100,
-                        Window = TimeSpan.FromMinutes(1),
+                        Window = TimeSpan.FromMinutes(2),
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 10
+                        QueueLimit = 0
                     }));
 
-            // API endpoints policy
-            options.AddPolicy("ApiPolicy", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
-                    factory: _ => new FixedWindowRateLimiterOptions
-                    {
-                        AutoReplenishment = true,
-                        PermitLimit = 60,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 5
-                    }));
-
-            // Authentication endpoints policy (stricter)
-            options.AddPolicy("AuthPolicy", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    factory: _ => new FixedWindowRateLimiterOptions
-                    {
-                        AutoReplenishment = true,
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 2
-                    }));
-
-            // Heavy operations policy (very strict)
-            options.AddPolicy("HeavyPolicy", httpContext =>
+            options.AddPolicy("DrawGamePolicy", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
                         AutoReplenishment = true,
                         PermitLimit = 5,
-                        Window = TimeSpan.FromMinutes(1),
+                        Window = TimeSpan.FromMinutes(5),
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 1
+                        QueueLimit = 0
                     }));
 
             options.OnRejected = async (context, token) =>
             {
                 context.HttpContext.Response.StatusCode = 429;
-                
+
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
                 {
                     await context.HttpContext.Response.WriteAsync(
