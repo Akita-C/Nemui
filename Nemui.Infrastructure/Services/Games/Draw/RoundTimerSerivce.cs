@@ -39,8 +39,8 @@ public class RoundTimerService : IRoundTimerService
         this.wordRevealService = wordRevealService;
         this.logger = logger;
 
-        cleanupInterval = roundTimerSettings.Value.CleanupIntervalMinutes;
-        finishedRoundTimeout = roundTimerSettings.Value.FinishedRoundTimeoutMinutes;
+        cleanupInterval = roundTimerSettings.Value.CleanupInterval;
+        finishedRoundTimeout = roundTimerSettings.Value.FinishedRoundTimeout;
 
         cleanupTimer = new PeriodicTimer(cleanupInterval);
         cleanupTask = StartCleanupTimerAsync();
@@ -139,6 +139,7 @@ public class RoundTimerService : IRoundTimerService
 
                 try
                 {
+                    logger.LogDebug("Cleaning up finished rounds");
                     await CleanupFinishedRoundsAsync();
                 }
                 catch (Exception ex)
