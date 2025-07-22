@@ -1,0 +1,71 @@
+# .dockerignore cho ASP.NET Core Project
+# Loại bỏ files không cần thiết để giảm build context size
+
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.cache
+*.docstates
+
+# NuGet
+packages/
+*.nupkg
+
+# Logs
+logs/
+*.log
+
+# Environment và config files
+.env*
+appsettings.Development.json
+appsettings.Local.json
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Test files
+**/*Test*/
+**/*Tests*/
+**/TestResults/
+
+# Temporary files
+**/tmp/
+**/temp/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Coverage reports
+coverage/
+*.coverage
+
+# Docker files (không copy Dockerfile vào chính nó)
+Dockerfile*
+docker-compose*
+
+# Build scripts
+*.sh
+*.bat 
