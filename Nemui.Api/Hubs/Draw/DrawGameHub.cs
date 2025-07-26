@@ -97,6 +97,7 @@ public class DrawGameHub(
         var room = await gameService.GetRoomAsync(roomId);
         if (room == null || room.Host.HostId != currentUserService.UserId)
         {
+            logger.LogWarning("Invalid start round attempt for room {RoomId} by user {UserId} and current Host Id {HostId}", roomId, currentUserService.UserId, room.Host.HostId);
             throw new HubException("Room not found or user is not the host.");
         }
 

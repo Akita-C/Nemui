@@ -20,7 +20,7 @@ public static class DrawGameExtension
 
     public static WebApplication UseDrawGame(this WebApplication app)
     {
-        app.MapHub<DrawGameHub>("/hubs/draw-game");
+        app.MapHub<DrawGameHub>("/api/hubs/draw-game");
         return app;
     }
 }

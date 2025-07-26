@@ -22,7 +22,7 @@ public static class AuthenticationExtensions
                 {
                     var accessToken = context.Request.Query["access_token"];
                     var path = context.HttpContext.Request.Path;
-                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/draw-game"))
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/hubs/draw-game"))
                     {
                         context.Token = accessToken;
                     }
