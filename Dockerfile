@@ -6,7 +6,8 @@ EXPOSE 8081
 RUN addgroup -g 1001 appgroup && \
     adduser -u 1001 -G appgroup -s /bin/sh -D appuser
 
-RUN apk add --no-cache icu-libs tzdata curl
+RUN apk add --no-cache icu-libs tzdata curl ca-certificates && \
+    update-ca-certificates
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
